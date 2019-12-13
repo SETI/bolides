@@ -29,15 +29,50 @@ class Bolide():
     def datetime(self):
         return self.json['datetime']
 
-    def get_geodata(self, idx=0):
-        return self.json['attachments'][idx]['geoData']
+    @property
+    def attachments(self):
+        return self.json['attachments']
+
+    @property
+    def geodata(self):
+        return [self.json['attachments'][idx]['geoData']
+                for idx in range(len(self.json['attachments']))]
+
+    @property
+    def longitudes(self):
+        return [
+                    [x['location']['coordinates'][0]
+                    for x in self.geodata[idx]]
+                for idx in range(len(self.geodata))]
+
+    @property
+    def latitudes(self):
+        return [
+                    [x['location']['coordinates'][1]
+                    for x in self.geodata[idx]]
+                for idx in range(len(self.geodata))]
+
+    @property
+    def times(self):
+        return [
+                    [x['time']
+                    for x in self.geodata[idx]]
+                for idx in range(len(self.geodata))]
+
+    @property
+    def energies(self):
+        return [
+                    [x['energy']
+                    for x in self.geodata[idx]]
+                for idx in range(len(self.geodata))]
+
     
     def save_kml(self, file_name = ''):
 
-        data_count = len(self.latitude)
+        data_count = len(self.latitudes)
         alts = np.linspace(80e3,30e3,data_count)
-        lats = self.longitude[0]
-        lons = self.latitude[0]
+        lats = self.longitudes[0]
+        lons = self.latitudes[0]
         
         if not file_name:
             file_name = './kml_file.kml'
