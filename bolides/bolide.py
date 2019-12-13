@@ -64,7 +64,7 @@ class Bolide():
     
     def save_kml(self, file_name = ''):
 
-        data_count = len(self.latitudes)
+        data_count = len(self.latitudes[0])
         alts = np.linspace(80e3,30e3,data_count)
         lats = self.longitudes[0]
         lons = self.latitudes[0]
