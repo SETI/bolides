@@ -14,6 +14,7 @@ class BolideList():
         self.json = self._load_json()
 
     def _load_json(self):
+        """Returns a dictionary containing all events."""
         r = requests.get(API_ENDPOINT_EVENTLIST)
         return r.json()
 
@@ -47,6 +48,7 @@ class BolideList():
         return ax
 
     def plot_map(self):
+        """Plots the spatial distribution of bolides using basemap."""
         from mpl_toolkits.basemap import Basemap
         fig = plt.figure(figsize=(9*1.618, 9))
         ax = fig.add_axes([0.02, 0.03, 0.96, 0.89])
