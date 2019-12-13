@@ -17,5 +17,5 @@ class BolideList():
     def ids(self):
         return [event["_id"] for event in self.json['data']]
 
-    def __get__(self, idx):
+    def __getitem__(self, idx):
         return Bolide(self.ids[idx])

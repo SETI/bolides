@@ -68,7 +68,7 @@ class Bolide():
         alts = np.linspace(80e3,30e3,data_count)
         lats = self.longitudes[0]
         lons = self.latitudes[0]
-        
+
         if not file_name:
             file_name = './kml_file.kml'
         

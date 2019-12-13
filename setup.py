@@ -21,8 +21,6 @@ setup(name='bolides',
       author_email='hello@geert.io',
       license='BSD',
       packages=['bolides'],
-      include_package_data=True,
-      # See http://www.sphinx-doc.org/en/stable/theming.html#distribute-your-theme-as-a-python-package
       classifiers=[
           "Development Status :: 5 - Production/Stable",
           "Intended Audience :: Developers",
