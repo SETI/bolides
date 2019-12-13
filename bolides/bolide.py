@@ -7,27 +7,22 @@ import numpy as np
 
 
 class Bolide():
+    """Represent a bright fireball reported at https://neo-bolide.ndc.nasa.gov
 
+    Parameters
+    ----------
+    eventid : str
+        Unique identifier of the event as used by https://neo-bolide.ndc.nasa.gov.
+    """
     def __init__(self, eventid):
         self.eventid = eventid
         self.json = self._load_json(eventid)['data'][0]
 
     def _load_json(self, eventid):
+        """Returns a dictionary containing the data for the bolide."""
         url = f"{API_ENDPOINT_EVENT}/{eventid}"
         r = requests.get(url)
         return r.json()
-    
-    @property
-    def latitude(self):
-        return self.json['latitude']
-
-    @property
-    def longitude(self):
-        return self.json['longitude']
-
-    @property
-    def datetime(self):
-        return self.json['datetime']
 
     @property
     def attachments(self):
@@ -62,6 +57,13 @@ class Bolide():
         return [[x['energy'] for x in self.geodata[idx]]
                 for idx in range(len(self.geodata))]
     
+    def to_lightcurve(self, idx=0):
+        """Returns the energies as a LightCurve object."""
+        import lightkurve as lk
+        return lk.LightCurve(time=self.times[idx],
+                             flux=self.energies[idx],
+                             targetid=self.eventid[idx])
+
     def save_kml(self, file_name = ''):
 
         data_count = len(self.latitudes[0])
