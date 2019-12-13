@@ -68,6 +68,11 @@ class Bolide():
         alts = np.linspace(80e3,30e3,data_count)
         lats = self.latitudes[0]
         lons = self.longitudes[0]
+        energies = self.energies[0]
+        log_energy_mean = np.log10(np.mean(energies))
+        log_energies = np.log10(energies)
+
+        self.sizing_scales = (log_energies / log_energy_mean)**5.0
 
         if not file_name:
             file_name = './kml_file.kml'
@@ -78,7 +83,7 @@ class Bolide():
             pnt = kml.newpoint(coords=[point])
             pnt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
             pnt.style.iconstyle.color = simplekml.Color.blue
-            pnt.style.iconstyle.scale = 1.5
+            pnt.style.iconstyle.scale = self.sizing_scales[n]
             pnt.altitudemode = simplekml.AltitudeMode.relativetoground
         
         kml.save(file_name)
