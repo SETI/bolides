@@ -21,7 +21,7 @@ setup(name='bolides',
       author_email='hello@geert.io',
       license='BSD',
       packages=['bolides'],
-      install_requires=['simplekml'],
+      install_requires=['simplekml', 'matplotlib', 'pandas'],
       classifiers=[
           "Development Status :: 5 - Production/Stable",
           "Intended Audience :: Developers",
