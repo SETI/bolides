@@ -2,6 +2,9 @@ import requests
 
 from . import API_ENDPOINT_EVENT
 
+import simplekml
+import numpy as np
+
 
 class Bolide():
 
@@ -58,3 +61,24 @@ class Bolide():
     def energies(self):
         return [[x['energy'] for x in self.geodata[idx]]
                 for idx in range(len(self.geodata))]
+    
+    def save_kml(self, file_name = ''):
+
+        data_count = len(self.latitudes)
+        alts = np.linspace(80e3,30e3,data_count)
+        lats = self.longitudes[0]
+        lons = self.latitudes[0]
+        
+        if not file_name:
+            file_name = './kml_file.kml'
+        
+        kml = simplekml.Kml()
+        
+        for n, point in enumerate(zip(lons, lats, alts)):
+            pnt = kml.newpoint(coords=[point])
+            pnt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
+            pnt.style.iconstyle.color = simplekml.Color.blue
+            pnt.style.iconstyle.scale = 1.5
+            pnt.altitudemode = simplekml.AltitudeMode.relativetoground
+        
+        kml.save(file_name)
