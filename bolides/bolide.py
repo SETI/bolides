@@ -26,5 +26,39 @@ class Bolide():
     def datetime(self):
         return self.json['datetime']
 
-    def get_geodata(self, idx=0):
-        return self.json['attachments'][idx]['geoData']
+    @property
+    def attachments(self):
+        return self.json['attachments']
+
+    @property
+    def geodata(self):
+        return [self.json['attachments'][idx]['geoData']
+                for idx in range(len(self.json['attachments']))]
+
+    @property
+    def longitudes(self):
+        return [
+                    [x['location']['coordinates'][0]
+                    for x in self.geodata[idx]]
+                for idx in range(len(self.geodata))]
+
+    @property
+    def latitudes(self):
+        return [
+                    [x['location']['coordinates'][1]
+                    for x in self.geodata[idx]]
+                for idx in range(len(self.geodata))]
+
+    @property
+    def times(self):
+        return [
+                    [x['time']
+                    for x in self.geodata[idx]]
+                for idx in range(len(self.geodata))]
+
+    @property
+    def energies(self):
+        return [
+                    [x['energy']
+                    for x in self.geodata[idx]]
+                for idx in range(len(self.geodata))]
