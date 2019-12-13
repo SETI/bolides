@@ -51,14 +51,10 @@ class Bolide():
 
     @property
     def times(self):
-        return [
-                    [x['time']
-                    for x in self.geodata[idx]]
+        return [[x['time'] for x in self.geodata[idx]]
                 for idx in range(len(self.geodata))]
 
     @property
     def energies(self):
-        return [
-                    [x['energy']
-                    for x in self.geodata[idx]]
+        return [[x['energy'] for x in self.geodata[idx]]
                 for idx in range(len(self.geodata))]
