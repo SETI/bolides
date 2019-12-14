@@ -84,7 +84,7 @@ class Bolide():
         for n, point in enumerate(zip(lons, lats, alts)):
             pnt = kml.newpoint(coords=[point])
             pnt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
-            pnt.style.iconstyle.color = simplekml.Color.blue
+            pnt.style.iconstyle.color = simplekml.Color.red
             pnt.style.iconstyle.scale = self.sizing_scales[n]
             pnt.altitudemode = simplekml.AltitudeMode.relativetoground
         
