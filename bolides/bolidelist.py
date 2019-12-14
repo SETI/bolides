@@ -1,3 +1,4 @@
+import os
 import requests
 
 import matplotlib.pyplot as plt
@@ -21,6 +22,9 @@ class BolideList():
     @property
     def ids(self):
         return [event["_id"] for event in self.json['data']]
+
+    def __len__(self):
+        return len(self.ids)
 
     def __getitem__(self, idx):
         return Bolide(self.ids[idx])
@@ -65,3 +69,28 @@ class BolideList():
         m.scatter(x, y, marker="o", color="red", edgecolor='black',
                 lw=0.4, s=15, zorder=999)
         plt.show()
+
+
+
+
+class AMSBolideList():
+
+    def __init__(self, year=2019):
+        self.json = self._load_json(year)
+
+    def _load_json(self, year):
+        key = os.environ.get('AMS_API_KEY')
+        url = f"https://www.amsmeteors.org/members/api/open_api/get_events?api_key={key}&year={year}&format=json"
+        r = requests.get(url)
+        return r.json()
+
+    @property
+    def events(self):
+        return [self.json['result'][key] for key in self.json['result']]
+
+    def to_pandas(self):
+        """Returns a pandas DataFrame summarizing all bolides."""
+        import pandas as pd
+        df = pd.DataFrame(self.json['result']).transpose()
+        df["avg_date_utc"] = df["avg_date_utc"].astype("datetime64")
+        return df
