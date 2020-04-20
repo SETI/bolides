@@ -1,12 +1,14 @@
-import cv2
-import numpy as np
-import lightkurve as lk
-from pytube import YouTube
 
 
 def youtube_photometry(video):
     """Returns a LightCurve object containing the total grayscale intensity
     of a youtube video over time."""
+    # These imports are not used anywhere else, so let's have them be optional/local:
+    import cv2
+    import numpy as np
+    import lightkurve as lk
+    from pytube import YouTube
+
     url = f'https://youtu.be/{video}'
     path = YouTube(url).streams.first().download()
     cap = cv2.VideoCapture(path)
