@@ -34,6 +34,11 @@ class Bolide():
                 for idx in range(len(self.json['attachments']))]
 
     @property
+    def platformId(self):
+        return [self.json['attachments'][idx]['platformId']
+               for idx in range(len(self.json['attachments']))]
+
+    @property
     def longitudes(self):
         return [
                     [x['location']['coordinates'][0]
