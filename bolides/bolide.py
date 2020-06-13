@@ -89,3 +89,4 @@ class Bolide():
             pnt.altitudemode = simplekml.AltitudeMode.relativetoground
         
         kml.save(file_name)
+
