@@ -17,6 +17,7 @@ class Bolide():
     def __init__(self, eventid):
         self.eventid = eventid
         self.json = self._load_json(eventid)['data'][0]
+        self.nSatellites = len(self.json['attachments'])
 
     def _load_json(self, eventid):
         """Returns a dictionary containing the data for the bolide."""
@@ -25,42 +26,72 @@ class Bolide():
         return r.json()
 
     @property
+    def detectedBy(self):
+        return self.json['detectedBy']
+
+    @property
+    def howFound(self):
+        return self.json['howFound']
+
+    @property
+    def confidenceRating(self):
+        return self.json['confidenceRating']
+
+    @property
+    def _id(self):
+        return self.json['_id']
+
+    @property
     def attachments(self):
         return self.json['attachments']
 
     @property
-    def geodata(self):
-        return [self.json['attachments'][idx]['geoData']
-                for idx in range(len(self.json['attachments']))]
+    def netCDFFilename(self):
+        # There appears to be a hex number in front of each filename
+        # Strip this off
+        filenames = []
+        for idx in range(self.nSatellites):
+            realFilenameIdx = self.json['attachments'][idx]['netCdfFilename'].find('_') + 1
+            filenames.append(self.json['attachments'][idx]['netCdfFilename'][realFilenameIdx:])
+        return filenames
+
+    @property
+    def satellite(self):
+        return [self.json['attachments'][idx]['platformId']
+                for idx in range(self.nSatellites)]
 
     @property
     def platformId(self):
-        return [self.json['attachments'][idx]['platformId']
-               for idx in range(len(self.json['attachments']))]
+        return self.satellite
+
+    @property
+    def geodata(self):
+        return [self.json['attachments'][idx]['geoData']
+                for idx in range(self.nSatellites)]
 
     @property
     def longitudes(self):
         return [
                     [x['location']['coordinates'][0]
                     for x in self.geodata[idx]]
-                for idx in range(len(self.geodata))]
+                for idx in range(self.nSatellites)]
 
     @property
     def latitudes(self):
         return [
                     [x['location']['coordinates'][1]
                     for x in self.geodata[idx]]
-                for idx in range(len(self.geodata))]
+                for idx in range(self.nSatellites)]
 
     @property
     def times(self):
         return [[x['time'] for x in self.geodata[idx]]
-                for idx in range(len(self.geodata))]
+                for idx in range(self.nSatellites)]
 
     @property
     def energies(self):
         return [[x['energy'] for x in self.geodata[idx]]
-                for idx in range(len(self.geodata))]
+                for idx in range(self.nSatellites)]
     
     def to_lightcurve(self, idx=0):
         """Returns the energies as a LightCurve object."""
@@ -94,4 +125,3 @@ class Bolide():
             pnt.altitudemode = simplekml.AltitudeMode.relativetoground
         
         kml.save(file_name)
-
