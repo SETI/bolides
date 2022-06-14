@@ -6,27 +6,46 @@ import matplotlib.dates as mdates
 from geopandas import GeoDataFrame
 from shapely.geometry import Point
 import numpy as np
+from warnings import warn
 import warnings
 from cartopy import crs as ccrs
 from datetime import datetime
-from . import API_ENDPOINT_EVENT
+from . import API_ENDPOINT_EVENT, MPLSTYLE
 from lightkurve import LightCurve, LightCurveCollection
 import pickle
 
 
 class BolideDataFrame(GeoDataFrame):
+    """
+    Subclass of GeoPandas `~geopandas.GeoDataFrame` with additional bolide-specific methods.
+
+    Parameters
+    ----------
+    source : str
+        Specifies the source for the initialized. Can be either ``'website'``
+        to initialize from neo-bolide-ndc.nasa.gov data, ``'pickle'`` to
+        initialize from a pickled GeoDataFrame, or ``'pipeline'`` to initialize
+        from ZODB database files from the pipeline.
+    files : str, list
+        For ``'pickle'``, specifies the filename of the pickled object.
+        For ``'pipeline'``, specifies the filename(s) of the database file(s)
+    """
     def __init__(self, source='website', files=None):
+
         if source == 'website':
             init_gdf = get_df_from_website()
+
         elif source == 'pickle':
             if type(files) is not list:
                 files = [files]
             if len(files) > 1:
-                warnings.warn("More than one file given. Only the first is used.")
+                warn("More than one file given. Only the first is used.")
             with open(files[0], 'rb') as pkl:
                 init_gdf = pickle.load(pkl)
+
         elif source == 'pipeline':
             init_gdf = get_df_from_pipeline(files)
+
         else:
             raise('Unknown source')
 
@@ -38,6 +57,33 @@ class BolideDataFrame(GeoDataFrame):
         bdf['phase'] = [get_phase(dt) for dt in bdf['datetime']]
         bdf['moon_fullness'] = -np.abs(bdf['phase']-0.5)*2+1
         bdf['solarhour'] = [get_solarhour(data[0], data[1]) for data in zip(bdf['datetime'], bdf['longitude'])]
+
+    def filter_date(self, start=None, end=None, inplace=False):
+        """Filter bolides by date.
+
+        Filters the BolideDataFrame using dates given in ISO format.
+
+        Parameters
+        ----------
+        start, end: str
+            ISO-format strings that can be read by `~datetime.datetime.fromisoformat`.
+        inplace: bool
+            If True, the BolideDataFrame of this method is altered. If False, it is not, so the returned
+            BolideDataFrame must be used.
+
+        Returns
+        -------
+        new_bdf: BolideDataFrame"""
+        new_bdf = self
+        if start is not None:
+            to_drop = self.datetime < datetime.fromisoformat(start)
+            new_bdf = self.drop(self.index[to_drop], inplace=inplace)
+        if inplace: new_bdf = self
+        if end is not None:
+            to_drop = new_bdf.datetime > datetime.fromisoformat(end)
+            new_bdf = new_bdf.drop(new_bdf.index[to_drop], inplace=inplace)
+        if inplace: new_bdf = self
+        return new_bdf
 
     def filter_date_after(self, datestring):
         to_drop = self.datetime >= datetime.fromisoformat(datestring)
@@ -51,73 +97,142 @@ class BolideDataFrame(GeoDataFrame):
         to_drop = self.datetime.between(datetime.fromisoformat(start), datetime.fromisoformat(end))
         self.drop(self.index[~to_drop], inplace=True)
 
-    def plot_detections(self, crs=ccrs.LambertCylindrical(central_longitude=-100), **kwargs):
+    def plot_detections(self, crs=ccrs.AlbersEqualArea(central_longitude=-100), category=None,
+                        coastlines=True, style=MPLSTYLE, boundary=['goes-w', 'goes-e'], **kwargs):
         """Plot detections of bolides.
 
         Reprojects the geometry of bdf to the crs given, and scatters the points
-        on a cartopy map. args and kwargs are passed through to matplotlib's
-        scatter.
+        on a cartopy map. kwargs are passed through to matplotlib's scatter.
 
         Parameters
         ----------
         crs : cartopy Coordinate Reference System
-        bdf : GeoDataFrame
-            GeoDataFrame containing bolides as used throughout this package.
+        category: str
+            The name of a categorical column in the BolideDataFrame
+        coastlines: bool
+        style : str
 
         Returns
         -------
-        fig : Matplotlib figure
+        fig : Matplotlib Figure
+        ax : Cartopy GeoAxesSubplot
         """
+        warnings.filterwarnings("ignore", message="Shapely 2.0")
+        import matplotlib.cm as cmx
+
+        # default parameters put into kwargs if not specified by user
+        defaults = {'marker': '.', 'color': 'red', 'cmap': plt.get_cmap('viridis')}
+        if 'c' in kwargs:
+            del defaults['color']
+        for key, value in defaults.items():
+            if key not in kwargs:
+                kwargs[key] = value
 
         # get geopandas projection and reproject dataframe points
         crs_proj4 = crs.proj4_init
         bdf_proj = self.to_crs(crs_proj4)
 
-        fig, ax = plt.subplots(subplot_kw={'projection': crs}, figsize=(15, 15))
-
-        ax.stock_img()  # plot background map
-
         # get x,y lists
         points = bdf_proj['geometry']
-        x = [p.x for p in points]
-        y = [p.y for p in points]
+        x = np.array([p.x for p in points])
+        y = np.array([p.y for p in points])
 
-        defaults = {'marker': '.', 'color': 'red'}
-        for key, value in defaults.items():
-            if key not in kwargs:
-                kwargs[key] = value
+        # using the given style,
+        with plt.style.context(style):
 
-        # scatter points, passing arguments through
-        ax.scatter(x, y, **kwargs)
+            # generate Figure and GeoAxes with the given proejction
+            fig, ax = plt.subplots(subplot_kw={'projection': crs}, figsize=(8, 8))
+
+            ax.stock_img()  # plot background map
+
+            # scatter points, passing arguments through
+
+            if category is None: # if there is no categorical variable specified
+                cb = plt.scatter(x, y, **kwargs)
+                # if color is determined by a quantitative variable, we add a colorbar
+                if 'c' in kwargs:
+                    plt.colorbar(cb, label=kwargs['c'].name)
+
+            else: # if there is a categorical variable specified, color points using it
+                unique = self[category].unique() # get the unique values of the variable
+                import matplotlib.colors as colors
+                hot = plt.get_cmap('tab10')
+                cNorm = colors.Normalize(vmin=0, vmax=len(unique))
+                scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=hot)
+                
+                del kwargs['color'] # color kwarg being overridden by categorical variable
+                s = kwargs['s'] if 's' in kwargs else None
+
+                # for each unique category, scatter the data with the right color
+                for num, label in enumerate(unique):
+                    idx = self[category] == label
+                    if s is not None:
+                        kwargs['s'] = s[idx]
+                    ax.scatter(x[idx], y[idx], color=scalarMap.to_rgba(num), label=label, **kwargs)
+                plt.legend()
+
+            if coastlines:
+                ax.coastlines()  # plot coastlines
+
+            # plot sensor FOV
+            if boundary:
+                for filename in boundary:
+                    with open('data/'+filename+'.pkl', 'rb') as f:
+                        b = pickle.load(f)
+                    ax.add_geometries([b[0]], crs=b[1],
+                       facecolor='none', edgecolor='k', alpha=1, linewidth=3)
+
         return fig, ax
 
-    def plot_dates(self, freq='1D', **kwargs):
+    def plot_dates(self, freq='1D', logscale=False, style=MPLSTYLE, start=None, end=None, **kwargs):
         """Plots the number of bolides over time."""
         from pandas.plotting import register_matplotlib_converters
+
+        bdf = self.filter_date(start, end, inplace=False)
+
         register_matplotlib_converters()
-        counts = self.groupby(pd.Grouper(key='datetime', freq=freq)).count()
-        plt.style.use("ggplot")
-        fig, ax = plt.subplots(figsize=(10, 3), dpi=300)
-        ax.xaxis.set_major_locator(mdates.MonthLocator())
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-        plt.xticks(rotation=90)
-        ax.set_xlabel("date")
-        ax.set_ylabel("# Events")
-        ax.bar(counts.index, counts._id, **kwargs)
+        counts = bdf.groupby(pd.Grouper(key='datetime', freq=freq)).count()
+
+        with plt.style.context(style):
+            fig, ax = plt.subplots(figsize=(10, 3), dpi=300)
+            ax.xaxis.set_major_locator(mdates.YearLocator())
+            ax.xaxis.set_minor_locator(mdates.MonthLocator())
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+            ax.xaxis.set_minor_formatter(mdates.DateFormatter('%m'))
+            #fig.autofmt_xdate()
+            #plt.xticks(rotation=90)
+            plt.tick_params(axis='x', which='minor', labelsize=5, pad=0)
+            plt.tick_params(axis='x', which='major', pad=3)
+            for label in ax.get_xticklabels(which='major'):
+                pass
+                #label.set(fontsize=6)
+                #label.set(rotation=30, horizontalalignment='right')
+            ax.set_xlabel("Date")
+            if min(bdf.datetime).year==max(bdf.datetime).year:
+                ax.set_xlabel("Date (month in "+str(min(bdf.datetime).year)+")")
+            ax.set_ylabel("# Events")
+            if 'width' not in kwargs:
+                kwargs['width'] = max(500/len(counts),1)
+            ax.bar(counts.index, counts._id, **kwargs)
+            plt.xlim(min(bdf.datetime),max(bdf.datetime))
+            if logscale:
+                ax.set_yscale('log')
         return fig, ax
 
     def add_website_data(self, ids=None):
         # import json
         lclist = []
-        for num, row in self.iterrows():
+        for num, row in self.iterrows(): # for each bolide
 
             # if a subset of ids was specified that excludes this row, skip.
             if ids is not None and row['_id'] not in ids:
                 continue
-            # with open('test_data/'+row['_id']+'.json') as f:
-            #     data = json.load(f)['data'][0]['attachments']
+
+            # pull data from website
             data = requests.get(API_ENDPOINT_EVENT + row['_id']).json()['data'][0]['attachments']
             row_lcs = []
+
+            # create a LightCurve for each attachment in the data
             for attachment in data:
                 geodata = attachment['geoData']
                 flux = [point['energy'] for point in geodata]
@@ -131,11 +246,19 @@ class BolideDataFrame(GeoDataFrame):
             lclist.append(LightCurveCollection(row_lcs))
         self['lightcurves'] = lclist
 
+    # override GeoPandas' __getitem__ to force the class to remain BolideDataFrame
     def __getitem__(self, key):
         result = super().__getitem__(key)
         if isinstance(result, GeoDataFrame):
             result.__class__ = BolideDataFrame
         return result
+
+
+# def resize_colorbar(event):
+#    plt.draw()
+#    posn = ax.get_position()
+#    cbar_ax.set_position([posn.x0 + posn.width + 0.01, posn.y0,
+#                          0.04, posn.height])
 
 
 def get_df_from_website():
