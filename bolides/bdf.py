@@ -34,6 +34,7 @@ class BolideDataFrame(GeoDataFrame):
 
         if source == 'website':
             init_gdf = get_df_from_website()
+            init_gdf['source'] = 'website'
 
         elif source == 'pickle':
             if type(files) is not list:
@@ -43,8 +44,21 @@ class BolideDataFrame(GeoDataFrame):
             with open(files[0], 'rb') as pkl:
                 init_gdf = pickle.load(pkl)
 
+        elif source == 'csv':
+            if type(files) is not list:
+                files = [files]
+            if len(files) > 1:
+                warn("More than one file given. Only the first is used.")
+            init_gdf = pd.read_csv(files[0], index_col=0, parse_dates=['datetime'], keep_default_na=False)
+            lats = init_gdf['latitude']
+            lons = init_gdf['longitude']
+            coords = zip(lons, lats)
+            points = [Point(coord[0], coord[1]) for coord in coords]
+            init_gdf = GeoDataFrame(init_gdf, geometry=points, crs="EPSG:4326")
+
         elif source == 'pipeline':
             init_gdf = get_df_from_pipeline(files)
+            init_gdf['source'] = 'pipeline'
 
         else:
             raise('Unknown source')
@@ -78,11 +92,15 @@ class BolideDataFrame(GeoDataFrame):
         if start is not None:
             to_drop = self.datetime < datetime.fromisoformat(start)
             new_bdf = self.drop(self.index[to_drop], inplace=inplace)
-        if inplace: new_bdf = self
+        if inplace:
+            new_bdf = self
         if end is not None:
             to_drop = new_bdf.datetime > datetime.fromisoformat(end)
             new_bdf = new_bdf.drop(new_bdf.index[to_drop], inplace=inplace)
-        if inplace: new_bdf = self
+        if inplace:
+            new_bdf = self
+        if isinstance(new_bdf, GeoDataFrame):
+            new_bdf.__class__ = BolideDataFrame
         return new_bdf
 
     def filter_date_after(self, datestring):
@@ -117,7 +135,12 @@ class BolideDataFrame(GeoDataFrame):
         fig : Matplotlib Figure
         ax : Cartopy GeoAxesSubplot
         """
-        warnings.filterwarnings("ignore", message="Shapely 2.0")
+        # The cartopy library used by plot_detections currently has many warnings about the shapely library deprecating things...
+        # This code suppresses those warnings
+        import warnings
+        warnings.filterwarnings("ignore", message="__len__ for multi-part")
+        warnings.filterwarnings("ignore", message="Iteration over multi-part")
+
         import matplotlib.cm as cmx
 
         # default parameters put into kwargs if not specified by user
@@ -147,20 +170,20 @@ class BolideDataFrame(GeoDataFrame):
 
             # scatter points, passing arguments through
 
-            if category is None: # if there is no categorical variable specified
+            if category is None:  # if there is no categorical variable specified
                 cb = plt.scatter(x, y, **kwargs)
                 # if color is determined by a quantitative variable, we add a colorbar
                 if 'c' in kwargs:
                     plt.colorbar(cb, label=kwargs['c'].name)
 
-            else: # if there is a categorical variable specified, color points using it
-                unique = self[category].unique() # get the unique values of the variable
+            else:  # if there is a categorical variable specified, color points using it
+                unique = self[category].unique()  # get the unique values of the variable
                 import matplotlib.colors as colors
                 hot = plt.get_cmap('tab10')
                 cNorm = colors.Normalize(vmin=0, vmax=len(unique))
                 scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=hot)
-                
-                del kwargs['color'] # color kwarg being overridden by categorical variable
+
+                del kwargs['color']  # color kwarg being overridden by categorical variable
                 s = kwargs['s'] if 's' in kwargs else None
 
                 # for each unique category, scatter the data with the right color
@@ -179,8 +202,8 @@ class BolideDataFrame(GeoDataFrame):
                 for filename in boundary:
                     with open('data/'+filename+'.pkl', 'rb') as f:
                         b = pickle.load(f)
-                    ax.add_geometries([b[0]], crs=b[1],
-                       facecolor='none', edgecolor='k', alpha=1, linewidth=3)
+                    ax.add_geometries([b[0]], crs=b[1], facecolor='none',
+                                      edgecolor='k', alpha=1, linewidth=3)
 
         return fig, ax
 
@@ -199,22 +222,18 @@ class BolideDataFrame(GeoDataFrame):
             ax.xaxis.set_minor_locator(mdates.MonthLocator())
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
             ax.xaxis.set_minor_formatter(mdates.DateFormatter('%m'))
-            #fig.autofmt_xdate()
-            #plt.xticks(rotation=90)
+
             plt.tick_params(axis='x', which='minor', labelsize=5, pad=0)
             plt.tick_params(axis='x', which='major', pad=3)
-            for label in ax.get_xticklabels(which='major'):
-                pass
-                #label.set(fontsize=6)
-                #label.set(rotation=30, horizontalalignment='right')
+
             ax.set_xlabel("Date")
-            if min(bdf.datetime).year==max(bdf.datetime).year:
+            if min(bdf.datetime).year == max(bdf.datetime).year:
                 ax.set_xlabel("Date (month in "+str(min(bdf.datetime).year)+")")
             ax.set_ylabel("# Events")
             if 'width' not in kwargs:
-                kwargs['width'] = max(500/len(counts),1)
+                kwargs['width'] = max(100/len(counts), 1)
             ax.bar(counts.index, counts._id, **kwargs)
-            plt.xlim(min(bdf.datetime),max(bdf.datetime))
+            plt.xlim(min(bdf.datetime), max(bdf.datetime))
             if logscale:
                 ax.set_yscale('log')
         return fig, ax
@@ -222,7 +241,7 @@ class BolideDataFrame(GeoDataFrame):
     def add_website_data(self, ids=None):
         # import json
         lclist = []
-        for num, row in self.iterrows(): # for each bolide
+        for num, row in self.iterrows():  # for each bolide
 
             # if a subset of ids was specified that excludes this row, skip.
             if ids is not None and row['_id'] not in ids:
@@ -246,20 +265,16 @@ class BolideDataFrame(GeoDataFrame):
             lclist.append(LightCurveCollection(row_lcs))
         self['lightcurves'] = lclist
 
+    def to_pickle(self, filename):
+        with open(filename, 'wb') as f:
+            pickle.dump(self, f)
+
     # override GeoPandas' __getitem__ to force the class to remain BolideDataFrame
     def __getitem__(self, key):
         result = super().__getitem__(key)
         if isinstance(result, GeoDataFrame):
             result.__class__ = BolideDataFrame
         return result
-
-
-# def resize_colorbar(event):
-#    plt.draw()
-#    posn = ax.get_position()
-#    cbar_ax.set_position([posn.x0 + posn.width + 0.01, posn.y0,
-#                          0.04, posn.height])
-
 
 def get_df_from_website():
     bl = BolideList()
