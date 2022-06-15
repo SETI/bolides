@@ -12,6 +12,8 @@ from datetime import datetime
 from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE
 from lightkurve import LightCurve, LightCurveCollection
 import pickle
+from math import degrees
+import ephem
 
 
 class BolideDataFrame(GeoDataFrame):
@@ -35,6 +37,10 @@ class BolideDataFrame(GeoDataFrame):
             init_gdf = get_df_from_website()
             init_gdf['source'] = 'website'
 
+        elif source == 'usg':
+            init_gdf = get_df_from_usg()
+            init_gdf['source'] = 'usg'
+
         elif source == 'pickle':
             if type(files) is not list:
                 files = [files]
@@ -54,6 +60,7 @@ class BolideDataFrame(GeoDataFrame):
             coords = zip(lons, lats)
             points = [Point(coord[0], coord[1]) for coord in coords]
             init_gdf = GeoDataFrame(init_gdf, geometry=points, crs="EPSG:4326")
+
 
         elif source == 'pipeline':
             init_gdf = get_df_from_pipeline(files)
@@ -75,6 +82,17 @@ class BolideDataFrame(GeoDataFrame):
         bdf['phase'] = [get_phase(dt) for dt in bdf['datetime']]
         bdf['moon_fullness'] = -np.abs(bdf['phase']-0.5)*2+1
         bdf['solarhour'] = [get_solarhour(data[0], data[1]) for data in zip(bdf['datetime'], bdf['longitude'])]
+
+        sun_alt = []
+        for num, row in bdf.iterrows():
+            obs = ephem.Observer()
+            obs.lon = str(row['longitude'])
+            obs.lat = str(row['latitude'])
+            obs.date = row['datetime']
+            sun = ephem.Sun()
+            sun.compute(obs)
+            sun_alt.append(degrees(sun.alt))
+        bdf['sun_alt'] = sun_alt
 
     def describe(self, key=None):
         if type(key) is str:
@@ -240,7 +258,7 @@ class BolideDataFrame(GeoDataFrame):
             ax.set_ylabel("# Events")
             if 'width' not in kwargs:
                 kwargs['width'] = max(100/len(counts), 1)
-            ax.bar(counts.index, counts._id, **kwargs)
+            ax.bar(counts.index, counts.iloc[:, 0], **kwargs)
             plt.xlim(min(bdf.datetime), max(bdf.datetime))
             if logscale:
                 ax.set_yscale('log')
@@ -284,6 +302,36 @@ class BolideDataFrame(GeoDataFrame):
             result.__class__ = BolideDataFrame
         return result
 
+    # currently only supports augmenting GLM data with USG data
+    def augment(self, source, files=None, intersection=False):
+        new_data = BolideDataFrame(source=source, files=files)
+        new_data['_id'] = ""
+        for num, row in self.iterrows():
+            deltas = row['datetime']-new_data['datetime']
+            s_deltas = np.abs([delta.total_seconds() for delta in deltas])
+            closest = np.argmin(s_deltas)
+            if s_deltas[closest]<300:
+                lat_diff = abs(row['latitude']-new_data['latitude'][closest])
+                lon_diff = abs(row['longitude']%360-new_data['longitude'][closest]%360)
+                geo_diff = lat_diff+lon_diff
+                s_diff = s_deltas[closest]
+                score = geo_diff * s_diff
+                if score < 5:
+                    new_data['_id'][closest] = row['_id']
+        if intersection:
+            merged = self.merge(new_data, 'inner', on='_id')
+        else:
+            merged = self.merge(new_data, 'left', on='_id')
+        merged['geometry'] = merged['geometry_x']
+        merged['datetime'] = merged['datetime_x']
+        merged['latitude'] = merged['latitude_x']
+        merged['longitude'] = merged['longitude_x']
+        merged = merged[[c for c in merged.columns if not c.endswith('_x')]] 
+        merged = merged[[c for c in merged.columns if not c.endswith('_y')]] 
+        merged.__class__ = BolideDataFrame
+        merged.annotate_bdf()
+        return merged
+
 
 def get_df_from_website():
 
@@ -306,6 +354,29 @@ def get_df_from_website():
 
     return gdf
 
+def get_df_from_usg():
+
+    # load data from website
+    json = requests.get('https://ssd-api.jpl.nasa.gov/fireball.api').json()
+    data = json['data']
+    cols = json['fields']
+
+    # create DataFrame
+    df = pd.DataFrame(data, columns=cols)
+    df['latitude'] = df['lat'].astype(float) * ((df['lat-dir']=='N') * 2 - 1)
+    df['longitude'] = df['lon'].astype(float) * ((df['lon-dir']=='E') * 2 - 1)
+    df['datetime'] = [datetime.fromisoformat(date) for date in df['date']]
+    df['energy'] = df['energy'].astype(float)
+
+    # create a list to be used as a geometry column
+    lats = df['latitude']
+    lons = df['longitude']
+    coords = zip(lons, lats)
+    points = [Point(coord[0], coord[1]) for coord in coords]
+
+    gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
+
+    return gdf
 
 def get_feature(feature, bDispObj):
     return [getattr(disp.features, feature) for disp in bDispObj.bolideDispositionProfileList]
@@ -337,7 +408,6 @@ def get_df_from_pipeline(files):
 
 
 def get_phase(datetime):
-    import ephem
     date = ephem.Date(datetime)
     nnm = ephem.next_new_moon(date)
     pnm = ephem.previous_new_moon(date)
@@ -347,7 +417,6 @@ def get_phase(datetime):
 
 
 def get_solarhour(datetime, lon):
-    import ephem
     o = ephem.Observer()
     o.date = datetime
     from math import pi
