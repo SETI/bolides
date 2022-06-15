@@ -67,10 +67,23 @@ class BolideDataFrame(GeoDataFrame):
 
         self.annotate_bdf()
 
+        from configparser import ConfigParser
+        config = ConfigParser()
+        config.read('bolides/desc.ini')
+        self.descriptions = config['neo-bolide']
+
     def annotate_bdf(bdf):
         bdf['phase'] = [get_phase(dt) for dt in bdf['datetime']]
         bdf['moon_fullness'] = -np.abs(bdf['phase']-0.5)*2+1
         bdf['solarhour'] = [get_solarhour(data[0], data[1]) for data in zip(bdf['datetime'], bdf['longitude'])]
+
+    def describe(self, key=None):
+        if type(key) is str:
+            key = [key]
+        to_describe = self.columns if key is None else key
+        for column in to_describe:
+            description = self.descriptions[column] if column in self.descriptions else ""
+            print(column, ":", description)
 
     def filter_date(self, start=None, end=None, inplace=False):
         """Filter bolides by date.
@@ -116,7 +129,7 @@ class BolideDataFrame(GeoDataFrame):
         self.drop(self.index[~to_drop], inplace=True)
 
     def plot_detections(self, crs=ccrs.AlbersEqualArea(central_longitude=-100), category=None,
-                        coastlines=True, style=MPLSTYLE, boundary=['goes-w', 'goes-e'], **kwargs):
+                        coastlines=True, style=MPLSTYLE, boundary=['goes-w', 'goes-e'], boundary_style={}, **kwargs):
         """Plot detections of bolides.
 
         Reprojects the geometry of bdf to the crs given, and scatters the points
@@ -135,9 +148,9 @@ class BolideDataFrame(GeoDataFrame):
         fig : Matplotlib Figure
         ax : Cartopy GeoAxesSubplot
         """
-        # The cartopy library used by plot_detections currently has many warnings about the shapely library deprecating things...
+        # The cartopy library used by plot_detections currently has many
+        # warnings about the shapely library deprecating things...
         # This code suppresses those warnings
-        import warnings
         warnings.filterwarnings("ignore", message="__len__ for multi-part")
         warnings.filterwarnings("ignore", message="Iteration over multi-part")
 
@@ -199,11 +212,7 @@ class BolideDataFrame(GeoDataFrame):
 
             # plot sensor FOV
             if boundary:
-                for filename in boundary:
-                    with open('data/'+filename+'.pkl', 'rb') as f:
-                        b = pickle.load(f)
-                    ax.add_geometries([b[0]], crs=b[1], facecolor='none',
-                                      edgecolor='k', alpha=1, linewidth=3)
+                add_boundary(ax, boundary, boundary_style)
 
         return fig, ax
 
@@ -276,6 +285,7 @@ class BolideDataFrame(GeoDataFrame):
             result.__class__ = BolideDataFrame
         return result
 
+
 def get_df_from_website():
     bl = BolideList()
     bdf = bl.to_pandas()
@@ -338,6 +348,37 @@ def get_solarhour(datetime, lon):
     hour_angle = o.sidereal_time() - sun.ra
     solarhour = ephem.hours(hour_angle+ephem.hours('12:00')).norm/(2*pi) * 24
     return solarhour
+
+
+def add_boundary(ax, boundary, boundary_style):
+
+    # for filename in boundary:
+    #     with open('data/'+filename+'.pkl', 'rb') as f:
+    #         b = pickle.load(f)
+    #     ax.add_geometries([b[0]], crs=b[1], facecolor='none',
+    #                       edgecolor='k', alpha=1, linewidth=3)
+
+    boundary_defaults = {"facecolor": "none"}
+    for key, value in boundary_defaults.items():
+        if key not in boundary_style:
+            boundary_style[key] = value
+    from netCDF4 import Dataset
+    from shapely.geometry import LinearRing
+    lines = []
+    if 'goes-e' in boundary:
+        fov = Dataset("data/GLM_FOV_edges.nc", "r", format="NETCDF4")
+        lats = fov.variables['G16_fov_lat'][0]
+        lons = fov.variables['G16_fov_lon'][0]
+        lines.append(LinearRing(zip(lons, lats)))
+    if 'goes-w' in boundary:
+        fov = Dataset("data/GLM_FOV_edges.nc", "r", format="NETCDF4")
+        lats = fov.variables['G17_fov_lat'][0]
+        lons = fov.variables['G17_fov_lon'][0]
+        lines.append(LinearRing(zip(lons, lats)))
+        lats = fov.variables['G17_fov_lat_inverted'][0]
+        lons = fov.variables['G17_fov_lon_inverted'][0]
+        lines.append(LinearRing(zip(lons, lats)))
+    ax.add_geometries(lines, crs=ccrs.PlateCarree(), **boundary_style)
 
 
 # def make_point(point):
