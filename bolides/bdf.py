@@ -1,5 +1,4 @@
 import requests
-from bolides.bolidelist import BolideList
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -10,7 +9,7 @@ from warnings import warn
 import warnings
 from cartopy import crs as ccrs
 from datetime import datetime
-from . import API_ENDPOINT_EVENT, MPLSTYLE
+from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE
 from lightkurve import LightCurve, LightCurveCollection
 import pickle
 
@@ -287,15 +286,25 @@ class BolideDataFrame(GeoDataFrame):
 
 
 def get_df_from_website():
-    bl = BolideList()
-    bdf = bl.to_pandas()
-    lats = bdf['latitude']
-    lons = bdf['longitude']
+
+    # load data from website
+    json = requests.get(API_ENDPOINT_EVENTLIST).json()
+
+    # create DataFrame using JSON data
+    df = pd.DataFrame(json['data'])
+    df["datetime"] = df["datetime"].astype("datetime64")
+
+    # create a list to be used as a geometry column
+    lats = df['latitude']
+    lons = df['longitude']
     coords = zip(lons, lats)
     points = [Point(coord[0], coord[1]) for coord in coords]
-    bdf = GeoDataFrame(bdf, geometry=points, crs="EPSG:4326")
 
-    return bdf
+    # create GeoDataFrame using DataFrame and the geometry.
+    # EPSG:4326 because data is in lon-lat format.
+    gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
+
+    return gdf
 
 
 def get_feature(feature, bDispObj):
