@@ -61,7 +61,6 @@ class BolideDataFrame(GeoDataFrame):
             points = [Point(coord[0], coord[1]) for coord in coords]
             init_gdf = GeoDataFrame(init_gdf, geometry=points, crs="EPSG:4326")
 
-
         elif source == 'pipeline':
             init_gdf = get_df_from_pipeline(files)
             init_gdf['source'] = 'pipeline'
@@ -133,17 +132,82 @@ class BolideDataFrame(GeoDataFrame):
             new_bdf.__class__ = BolideDataFrame
         return new_bdf
 
-    def filter_date_after(self, datestring):
-        to_drop = self.datetime >= datetime.fromisoformat(datestring)
-        self.drop(self.index[~to_drop], inplace=True)
+    def get_closest_by_time(self, datestr, n=1):
+        dt = datetime.fromisoformat(datestr)
+        return self.iloc[(self['datetime'] - dt).abs().argsort()].head(n)
 
-    def filter_date_before(self, datestring):
-        to_drop = self.datetime <= datetime.fromisoformat(datestring)
-        self.drop(self.index[~to_drop], inplace=True)
+    def get_closest_by_loc(self, lon, lat, n=1):
+        lon_diff = (self['longitude'] - lon).abs()
+        lat_diff = (self['latitude'] - lat).abs()
+        tot_diff = lon_diff + lat_diff
+        return self.iloc[tot_diff.argsort()].head(n)
 
-    def filter_date_between(self, start, end):
-        to_drop = self.datetime.between(datetime.fromisoformat(start), datetime.fromisoformat(end))
-        self.drop(self.index[~to_drop], inplace=True)
+    def clip_boundary(self, boundary=[], intersection=False):
+
+        # put bdf into the correct CRS
+        crs = self.geometry.crs
+        bdf = self.to_crs("epsg:4236")
+        from netCDF4 import Dataset
+        from shapely.geometry import Polygon
+        from shapely.ops import unary_union
+        import pyproj
+
+        # define Azimuthal Equidistant projection
+        aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=90, lon_0=0).srs
+
+        polygons = []
+
+        # for each item in the boundary, add it to the list of polygons in the
+        # Azimuthal Equidistant CRS
+        if 'goes-e' in boundary:
+
+            # get data and create polygon
+            fov = Dataset("data/GLM_FOV_edges.nc", "r", format="NETCDF4")
+            lats = fov.variables['G16_fov_lat'][0]
+            lons = fov.variables['G16_fov_lon'][0]
+            goes_e = Polygon(zip(lons, lats))
+
+            # use geopandas to re-project it
+            gdf = GeoDataFrame(geometry=[goes_e], crs='epsg:4236')
+            gdf = gdf.to_crs(aeqd)
+            polygons.append(gdf.geometry[0])
+
+        # for the GOES-W position, we can combine the regular and inverted FOV
+        if 'goes-w' in boundary:
+
+            # get data and create polygons
+            fov = Dataset("data/GLM_FOV_edges.nc", "r", format="NETCDF4")
+            lats = fov.variables['G17_fov_lat'][0]
+            lons = fov.variables['G17_fov_lon'][0]
+            goes_w = Polygon(zip(lons, lats))
+            lats = fov.variables['G17_fov_lat_inverted'][0]
+            lons = fov.variables['G17_fov_lon_inverted'][0]
+            goes_w_i = Polygon(zip(lons, lats))
+
+            # use geopandas to re-project them
+            gdf = GeoDataFrame(geometry=[goes_w, goes_w_i], crs='epsg:4236')
+            gdf = gdf.to_crs(aeqd)
+            polygons.append(unary_union([gdf.geometry[0], gdf.geometry[1]]))
+
+        # either take intersection of FOVs or the union to get a final polygon
+        if intersection:
+            final_polygon = polygons[0]
+            for polygon in polygons:
+                final_polygon = final_polygon.intersection(polygon)
+        else:
+            final_polygon = unary_union(polygons)
+
+        # project bdf to Azimuthal Equidistant CRS
+        bdf = bdf.to_crs(aeqd)
+        # clip with the polygon, which is in Azimuthal Equidistant
+        bdf = bdf.clip(final_polygon)
+        # project bdf back to original CRS
+        bdf = bdf.to_crs(crs)
+
+        if isinstance(bdf, GeoDataFrame):
+            bdf.__class__ = BolideDataFrame
+
+        return bdf
 
     def plot_detections(self, crs=ccrs.AlbersEqualArea(central_longitude=-100), category=None,
                         coastlines=True, style=MPLSTYLE, boundary=['goes-w', 'goes-e'], boundary_style={}, **kwargs):
@@ -184,6 +248,8 @@ class BolideDataFrame(GeoDataFrame):
         # get geopandas projection and reproject dataframe points
         crs_proj4 = crs.proj4_init
         bdf_proj = self.to_crs(crs_proj4)
+        # filter out rows with no geometry
+        bdf_proj = bdf_proj[~bdf_proj.geometry.is_empty]
 
         # get x,y lists
         points = bdf_proj['geometry']
@@ -310,9 +376,9 @@ class BolideDataFrame(GeoDataFrame):
             deltas = row['datetime']-new_data['datetime']
             s_deltas = np.abs([delta.total_seconds() for delta in deltas])
             closest = np.argmin(s_deltas)
-            if s_deltas[closest]<300:
+            if s_deltas[closest] < 300:
                 lat_diff = abs(row['latitude']-new_data['latitude'][closest])
-                lon_diff = abs(row['longitude']%360-new_data['longitude'][closest]%360)
+                lon_diff = abs(row['longitude'] % 360 - new_data['longitude'][closest] % 360)
                 geo_diff = lat_diff+lon_diff
                 s_diff = s_deltas[closest]
                 score = geo_diff * s_diff
@@ -326,8 +392,8 @@ class BolideDataFrame(GeoDataFrame):
         merged['datetime'] = merged['datetime_x']
         merged['latitude'] = merged['latitude_x']
         merged['longitude'] = merged['longitude_x']
-        merged = merged[[c for c in merged.columns if not c.endswith('_x')]] 
-        merged = merged[[c for c in merged.columns if not c.endswith('_y')]] 
+        merged = merged[[c for c in merged.columns if not c.endswith('_x')]]
+        merged = merged[[c for c in merged.columns if not c.endswith('_y')]]
         merged.__class__ = BolideDataFrame
         merged.annotate_bdf()
         return merged
@@ -354,6 +420,7 @@ def get_df_from_website():
 
     return gdf
 
+
 def get_df_from_usg():
 
     # load data from website
@@ -363,8 +430,8 @@ def get_df_from_usg():
 
     # create DataFrame
     df = pd.DataFrame(data, columns=cols)
-    df['latitude'] = df['lat'].astype(float) * ((df['lat-dir']=='N') * 2 - 1)
-    df['longitude'] = df['lon'].astype(float) * ((df['lon-dir']=='E') * 2 - 1)
+    df['latitude'] = df['lat'].astype(float) * ((df['lat-dir'] == 'N') * 2 - 1)
+    df['longitude'] = df['lon'].astype(float) * ((df['lon-dir'] == 'E') * 2 - 1)
     df['datetime'] = [datetime.fromisoformat(date) for date in df['date']]
     df['energy'] = df['energy'].astype(float)
 
@@ -377,6 +444,7 @@ def get_df_from_usg():
     gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
 
     return gdf
+
 
 def get_feature(feature, bDispObj):
     return [getattr(disp.features, feature) for disp in bDispObj.bolideDispositionProfileList]
