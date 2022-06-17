@@ -1,19 +1,22 @@
 import requests
+from datetime import datetime
+from warnings import warn, filterwarnings
+from math import degrees
+
+import numpy as np
 import pandas as pd
+import pickle
+import ephem
+
+from geopandas import GeoDataFrame
+from cartopy import crs as ccrs
+from shapely.geometry import Point
+
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from geopandas import GeoDataFrame
-from shapely.geometry import Point
-import numpy as np
-from warnings import warn
-import warnings
-from cartopy import crs as ccrs
-from datetime import datetime
-from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE
 from lightkurve import LightCurve, LightCurveCollection
-import pickle
-from math import degrees
-import ephem
+
+from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE
 
 
 class BolideDataFrame(GeoDataFrame):
@@ -232,8 +235,8 @@ class BolideDataFrame(GeoDataFrame):
         # The cartopy library used by plot_detections currently has many
         # warnings about the shapely library deprecating things...
         # This code suppresses those warnings
-        warnings.filterwarnings("ignore", message="__len__ for multi-part")
-        warnings.filterwarnings("ignore", message="Iteration over multi-part")
+        filterwarnings("ignore", message="__len__ for multi-part")
+        filterwarnings("ignore", message="Iteration over multi-part")
 
         import matplotlib.cm as cmx
 
@@ -407,6 +410,28 @@ def get_df_from_website():
     # create DataFrame using JSON data
     df = pd.DataFrame(json['data'])
     df["datetime"] = df["datetime"].astype("datetime64")
+
+    # add bolide energy data
+    energies_g16 = []
+    energies_g17 = []
+    for ats in df.attachments:
+        e_g16 = 0
+        e_g17 = 0
+        for at in ats:
+            platform = at['platformId']
+            energy = at['energy']
+            if platform == 'G16':
+                e_g16 += energy
+            if platform == 'G17':
+                e_g17 += energy
+        if e_g16 == 0:
+            e_g16 = np.nan
+        if e_g17 == 0:
+            e_g17 = np.nan
+        energies_g16.append(e_g16)
+        energies_g17.append(e_g17)
+    df['energies_g16'] = energies_g16
+    df['energies_g17'] = energies_g17
 
     # create a list to be used as a geometry column
     lats = df['latitude']

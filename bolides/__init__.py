@@ -4,4 +4,5 @@ MPLSTYLE = "ggplot"
 
 from .bolide import *
 from .bolidelist import *
+from .bdf import *
 from .utils import *
