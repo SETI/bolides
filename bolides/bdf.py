@@ -28,13 +28,19 @@ class BolideDataFrame(GeoDataFrame):
     source : str
         Specifies the source for the initialized. Can be either ``'website'``
         to initialize from neo-bolide-ndc.nasa.gov data, ``'pickle'`` to
-        initialize from a pickled GeoDataFrame, or ``'pipeline'`` to initialize
-        from ZODB database files from the pipeline.
+        initialize from a pickled GeoDataFrame, ``'csv'`` to initialize from a
+        .csv file, ``'usg'`` to initialize from US Government data at
+        cneos.jpl.nasa.gov/fireballs/, or ``'pipeline'`` to initialize from
+        ZODB database files from the pipeline.
     files : str, list
         For ``'pickle'``, specifies the filename of the pickled object.
+        For ``'csv'``, specifies the filename of the csv.
         For ``'pipeline'``, specifies the filename(s) of the database file(s)
     """
     def __init__(self, source='website', files=None):
+
+        # Initialize differently based on source.
+        # Each if statement creates a GeoDataFrame with the EPSG:4326 CRS
 
         if source == 'website':
             init_gdf = get_df_from_website()
@@ -69,10 +75,12 @@ class BolideDataFrame(GeoDataFrame):
             init_gdf['source'] = 'pipeline'
 
         else:
-            raise('Unknown source')
+            raise('Unknown source '+str(source))
 
+        # initialize the super-class (GeoDataFrame) using the created init_gdf
         super().__init__(init_gdf)
 
+        # add additional metadata to the bolides
         self.annotate_bdf()
 
         from configparser import ConfigParser
@@ -81,10 +89,16 @@ class BolideDataFrame(GeoDataFrame):
         self.descriptions = config['neo-bolide']
 
     def annotate_bdf(bdf):
+        """Add metadata to bolide detections"""
+
+        # lunar phase
         bdf['phase'] = [get_phase(dt) for dt in bdf['datetime']]
+        # moon fullness
         bdf['moon_fullness'] = -np.abs(bdf['phase']-0.5)*2+1
+        # solar hour
         bdf['solarhour'] = [get_solarhour(data[0], data[1]) for data in zip(bdf['datetime'], bdf['longitude'])]
 
+        # calculate and add solar altitude
         sun_alt = []
         for num, row in bdf.iterrows():
             obs = ephem.Observer()
@@ -121,31 +135,40 @@ class BolideDataFrame(GeoDataFrame):
         -------
         new_bdf: BolideDataFrame"""
         new_bdf = self
+
+        # drop data before start date, if specified
         if start is not None:
             to_drop = self.datetime < datetime.fromisoformat(start)
             new_bdf = self.drop(self.index[to_drop], inplace=inplace)
         if inplace:
             new_bdf = self
+        # drop data after end date, if specified
         if end is not None:
             to_drop = new_bdf.datetime > datetime.fromisoformat(end)
             new_bdf = new_bdf.drop(new_bdf.index[to_drop], inplace=inplace)
         if inplace:
             new_bdf = self
-        if isinstance(new_bdf, GeoDataFrame):
-            new_bdf.__class__ = BolideDataFrame
+
+        # force the class, which gets converted to GeoDataFrame at some point
+        # in the drop methods above
+        force_bdf_class(new_bdf)
+
         return new_bdf
 
     def get_closest_by_time(self, datestr, n=1):
+        """Get the n bolides closest to a given iso-format date string"""
         dt = datetime.fromisoformat(datestr)
         return self.iloc[(self['datetime'] - dt).abs().argsort()].head(n)
 
     def get_closest_by_loc(self, lon, lat, n=1):
+        """Get the n bolides closest to a given longitude and latitude"""
         lon_diff = (self['longitude'] - lon).abs()
         lat_diff = (self['latitude'] - lat).abs()
         tot_diff = lon_diff + lat_diff
         return self.iloc[tot_diff.argsort()].head(n)
 
-    def clip_boundary(self, boundary=[], intersection=False):
+    def clip_boundary(self, boundary=[], intersection=False, interior=True):
+        """Filter data to only points within specified boundaries"""
 
         # put bdf into the correct CRS
         crs = self.geometry.crs
@@ -203,12 +226,15 @@ class BolideDataFrame(GeoDataFrame):
         # project bdf to Azimuthal Equidistant CRS
         bdf = bdf.to_crs(aeqd)
         # clip with the polygon, which is in Azimuthal Equidistant
-        bdf = bdf.clip(final_polygon)
+        points_in_poly = [pt.within(final_polygon) for pt in bdf['geometry']]
+        if interior:
+            bdf = bdf[points_in_poly]
+        else:
+            bdf = bdf[~points_in_poly]
         # project bdf back to original CRS
         bdf = bdf.to_crs(crs)
 
-        if isinstance(bdf, GeoDataFrame):
-            bdf.__class__ = BolideDataFrame
+        force_bdf_class(bdf)
 
         return bdf
 
@@ -305,32 +331,48 @@ class BolideDataFrame(GeoDataFrame):
     def plot_dates(self, freq='1D', logscale=False, style=MPLSTYLE, start=None, end=None, **kwargs):
         """Plots the number of bolides over time."""
         from pandas.plotting import register_matplotlib_converters
+        register_matplotlib_converters()
 
+        # filter date to given start and end times
         bdf = self.filter_date(start, end, inplace=False)
 
-        register_matplotlib_converters()
+        # get counts according to the given frequency
         counts = bdf.groupby(pd.Grouper(key='datetime', freq=freq)).count()
 
+        # with the given matplotlib style,
         with plt.style.context(style):
+
+            # initialize figure and set major, minor ticks and formats
             fig, ax = plt.subplots(figsize=(10, 3), dpi=300)
             ax.xaxis.set_major_locator(mdates.YearLocator())
             ax.xaxis.set_minor_locator(mdates.MonthLocator())
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
             ax.xaxis.set_minor_formatter(mdates.DateFormatter('%m'))
 
+            # make minor ticks (months) small, pad major ticks (years)
             plt.tick_params(axis='x', which='minor', labelsize=5, pad=0)
             plt.tick_params(axis='x', which='major', pad=3)
 
+            # set x-label, adding year data if data is only within one year
+            # (and hence no year data on x-axis)
             ax.set_xlabel("Date")
             if min(bdf.datetime).year == max(bdf.datetime).year:
                 ax.set_xlabel("Date (month in "+str(min(bdf.datetime).year)+")")
             ax.set_ylabel("# Events")
+
+            # adjust width according to number of bars, if not specified
             if 'width' not in kwargs:
                 kwargs['width'] = max(100/len(counts), 1)
+
+            # make bar plot, passing kwargs through
             ax.bar(counts.index, counts.iloc[:, 0], **kwargs)
+            # set x-limits to data limits
             plt.xlim(min(bdf.datetime), max(bdf.datetime))
+
+            # make y-axis logscale if specified
             if logscale:
                 ax.set_yscale('log')
+
         return fig, ax
 
     def add_website_data(self, ids=None):
@@ -361,44 +403,63 @@ class BolideDataFrame(GeoDataFrame):
         self['lightcurves'] = lclist
 
     def to_pickle(self, filename):
+        """Dump BolideDataFrame to a pickle at specified filename"""
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
 
     # override GeoPandas' __getitem__ to force the class to remain BolideDataFrame
     def __getitem__(self, key):
         result = super().__getitem__(key)
-        if isinstance(result, GeoDataFrame):
-            result.__class__ = BolideDataFrame
+        force_bdf_class(result)
         return result
 
-    # currently only supports augmenting GLM data with USG data
-    def augment(self, source, files=None, intersection=False):
+    # currently only supports augmenting GLM data with other data
+    # TODO: match on a column other than _id, as not all data sources have id
+    def augment(self, source, files=None, time_limit=300, score_limit=5, intersection=False):
+        """Augment BolideDataFrame with data from another source"""
+
+        # get data from other source, clear _id column
         new_data = BolideDataFrame(source=source, files=files)
         new_data['_id'] = ""
+
+        # iterate through rows of self, computing distance and identifying
+        # detections with detections in the other data if certain closeness
+        # criteria based on time and distance are met
         for num, row in self.iterrows():
             deltas = row['datetime']-new_data['datetime']
             s_deltas = np.abs([delta.total_seconds() for delta in deltas])
             closest = np.argmin(s_deltas)
-            if s_deltas[closest] < 300:
+            if s_deltas[closest] < time_limit:
                 lat_diff = abs(row['latitude']-new_data['latitude'][closest])
                 lon_diff = abs(row['longitude'] % 360 - new_data['longitude'][closest] % 360)
                 geo_diff = lat_diff+lon_diff
                 s_diff = s_deltas[closest]
                 score = geo_diff * s_diff
-                if score < 5:
+                if score < score_limit:
                     new_data['_id'][closest] = row['_id']
+
+        # merge the data. If taking the intersection, only keep rows in
+        # original BolideDataFrame that have a corresponding detection in
+        # the other source
         if intersection:
             merged = self.merge(new_data, 'inner', on='_id')
         else:
             merged = self.merge(new_data, 'left', on='_id')
+
+        # rename the required columns
         merged['geometry'] = merged['geometry_x']
         merged['datetime'] = merged['datetime_x']
         merged['latitude'] = merged['latitude_x']
         merged['longitude'] = merged['longitude_x']
+
+        # delete columns present in both. TODO: should keep some?
         merged = merged[[c for c in merged.columns if not c.endswith('_x')]]
         merged = merged[[c for c in merged.columns if not c.endswith('_y')]]
+
+        # force class and re-annotate
         merged.__class__ = BolideDataFrame
         merged.annotate_bdf()
+
         return merged
 
 
@@ -476,14 +537,14 @@ def get_feature(feature, bDispObj):
 
 
 def get_df_from_pipeline(files):
-    import bolide_dispositions.BolideDispositions.from_bolideDatabase as bDisp_from_db
+    import bolide_dispositions
     if type(files) is str:
-        bDispObj = bDisp_from_db(files, verbosity=True, useRamDisk=False)
+        bDispObj = bolide_dispositions.BolideDispositions.from_bolideDatabase(files, verbosity=True, useRamDisk=False)
     else:
-        bDispObj = bDisp_from_db(files[0], verbosity=True, useRamDisk=False)
+        bDispObj = bolide_dispositions.BolideDispositions.from_bolideDatabase(files[0], verbosity=True, useRamDisk=False)
         for i in range(1, len(files)):
-            bDispObj = bDisp_from_db(files[i], extra_bolideDispositionProfileList=bDispObj,
-                                     verbosity=True, useRamDisk=False)
+            bDispObj = bolide_dispositions.BolideDispositions.from_bolideDatabase(files[i], extra_bolideDispositionProfileList=bDispObj,
+                                                                                  verbosity=True, useRamDisk=False)
 
     lon = get_feature('avgLon', bDispObj)
     lat = get_feature('avgLat', bDispObj)
@@ -551,6 +612,10 @@ def add_boundary(ax, boundary, boundary_style):
         lines.append(LinearRing(zip(lons, lats)))
     ax.add_geometries(lines, crs=ccrs.PlateCarree(), **boundary_style)
 
+
+def force_bdf_class(bdf):
+    if isinstance(bdf, GeoDataFrame):
+        bdf.__class__ = BolideDataFrame
 
 # def make_point(point):
 #     lon = point['location']['coordinates'][0]
