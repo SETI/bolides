@@ -1,6 +1,7 @@
 import requests
 from datetime import datetime
 from warnings import warn, filterwarnings
+from tqdm import tqdm
 from math import degrees
 
 import numpy as np
@@ -66,8 +67,7 @@ class BolideDataFrame(GeoDataFrame):
             init_gdf = pd.read_csv(files[0], index_col=0, parse_dates=['datetime'], keep_default_na=False)
             lats = init_gdf['latitude']
             lons = init_gdf['longitude']
-            coords = zip(lons, lats)
-            points = [Point(coord[0], coord[1]) for coord in coords]
+            points = make_points(lons, lats)
             init_gdf = GeoDataFrame(init_gdf, geometry=points, crs="EPSG:4326")
 
         elif source == 'pipeline':
@@ -76,6 +76,15 @@ class BolideDataFrame(GeoDataFrame):
 
         else:
             raise('Unknown source '+str(source))
+
+        cols = list(init_gdf.columns.values)
+        first_cols = ['datetime', 'longitude', 'latitude']
+        first_cols.reverse()
+        for col in first_cols:
+            col_idx = cols.index(col)
+            del cols[col_idx]
+            cols.insert(0, col)
+        init_gdf = init_gdf[cols]
 
         # initialize the super-class (GeoDataFrame) using the created init_gdf
         super().__init__(init_gdf)
@@ -109,6 +118,8 @@ class BolideDataFrame(GeoDataFrame):
             sun.compute(obs)
             sun_alt.append(degrees(sun.alt))
         bdf['sun_alt'] = sun_alt
+
+        bdf['date_retrieved'] = datetime.now()
 
     def describe(self, key=None):
         if type(key) is str:
@@ -415,17 +426,18 @@ class BolideDataFrame(GeoDataFrame):
 
     # currently only supports augmenting GLM data with other data
     # TODO: match on a column other than _id, as not all data sources have id
-    def augment(self, source, files=None, time_limit=300, score_limit=5, intersection=False):
+    def augment(self, new_data, time_limit=300, score_limit=5, intersection=False):
         """Augment BolideDataFrame with data from another source"""
 
         # get data from other source, clear _id column
-        new_data = BolideDataFrame(source=source, files=files)
-        new_data['_id'] = ""
+        if "_id" not in self.columns:
+            self["_id"] = np.arange(len(self))
 
         # iterate through rows of self, computing distance and identifying
         # detections with detections in the other data if certain closeness
         # criteria based on time and distance are met
-        for num, row in self.iterrows():
+        ids = [""] * len(new_data)
+        for num, row in tqdm(self.iterrows(),"Augmenting data", total=len(self)):
             deltas = row['datetime']-new_data['datetime']
             s_deltas = np.abs([delta.total_seconds() for delta in deltas])
             closest = np.argmin(s_deltas)
@@ -436,8 +448,8 @@ class BolideDataFrame(GeoDataFrame):
                 s_diff = s_deltas[closest]
                 score = geo_diff * s_diff
                 if score < score_limit:
-                    new_data['_id'][closest] = row['_id']
-
+                    ids[closest] = row['_id']
+        new_data['_id'] = ids
         # merge the data. If taking the intersection, only keep rows in
         # original BolideDataFrame that have a corresponding detection in
         # the other source
@@ -447,20 +459,21 @@ class BolideDataFrame(GeoDataFrame):
             merged = self.merge(new_data, 'left', on='_id')
 
         # rename the required columns
-        merged['geometry'] = merged['geometry_x']
-        merged['datetime'] = merged['datetime_x']
-        merged['latitude'] = merged['latitude_x']
-        merged['longitude'] = merged['longitude_x']
+        for col in merged.columns:
+            if col.endswith('_x') and col[:-2]+"_y" in merged.columns:
+                merged[col[:-2]] = merged[col]
+                del merged[col]
 
-        # delete columns present in both. TODO: should keep some?
-        merged = merged[[c for c in merged.columns if not c.endswith('_x')]]
-        merged = merged[[c for c in merged.columns if not c.endswith('_y')]]
-
-        # force class and re-annotate
+        # force class
         merged.__class__ = BolideDataFrame
-        merged.annotate_bdf()
 
         return merged
+
+    def __setattr__(self, attr, val):
+        # since BolideDataFrame can have non-column attributes, we can ignore
+        # Pandas' warnings about setting attributes
+        filterwarnings("ignore", message="Pandas doesn't allow columns to be created via a new attribute name")
+        return super().__setattr__(attr, val)
 
 
 def get_df_from_website():
@@ -497,8 +510,7 @@ def get_df_from_website():
     # create a list to be used as a geometry column
     lats = df['latitude']
     lons = df['longitude']
-    coords = zip(lons, lats)
-    points = [Point(coord[0], coord[1]) for coord in coords]
+    points = make_points(lons, lats)
 
     # create GeoDataFrame using DataFrame and the geometry.
     # EPSG:4326 because data is in lon-lat format.
@@ -518,14 +530,15 @@ def get_df_from_usg():
     df = pd.DataFrame(data, columns=cols)
     df['latitude'] = df['lat'].astype(float) * ((df['lat-dir'] == 'N') * 2 - 1)
     df['longitude'] = df['lon'].astype(float) * ((df['lon-dir'] == 'E') * 2 - 1)
+    del df['lat'], df['lon'], df['lat-dir'], df['lon-dir']
     df['datetime'] = [datetime.fromisoformat(date) for date in df['date']]
+    del df['date']
     df['energy'] = df['energy'].astype(float)
 
     # create a list to be used as a geometry column
     lats = df['latitude']
     lons = df['longitude']
-    coords = zip(lons, lats)
-    points = [Point(coord[0], coord[1]) for coord in coords]
+    points = make_points(lons, lats)
 
     gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
 
@@ -536,29 +549,64 @@ def get_feature(feature, bDispObj):
     return [getattr(disp.features, feature) for disp in bDispObj.bolideDispositionProfileList]
 
 
-def get_df_from_pipeline(files):
-    import bolide_dispositions
-    if type(files) is str:
-        bDispObj = bolide_dispositions.BolideDispositions.from_bolideDatabase(files, verbosity=True, useRamDisk=False)
-    else:
-        bDispObj = bolide_dispositions.BolideDispositions.from_bolideDatabase(files[0], verbosity=True, useRamDisk=False)
-        for i in range(1, len(files)):
-            bDispObj = bolide_dispositions.BolideDispositions.from_bolideDatabase(files[i], extra_bolideDispositionProfileList=bDispObj,
-                                                                                  verbosity=True, useRamDisk=False)
+# get dict containing a list for every feature of the bDispObj
+def get_features(bDispObj):
 
-    lon = get_feature('avgLon', bDispObj)
-    lat = get_feature('avgLat', bDispObj)
-    sat = get_feature('goesSatellite', bDispObj)
-    dur = get_feature('timeDuration', bDispObj)
-    dat = get_feature('bolideTime', bDispObj)
+    # get a list with a feature dict for each bolide
+    list_of_dicts = [vars(disp.features) for disp in bDispObj.bolideDispositionProfileList]
+
+    # turn it into a dict with a list for every feature
+    # assumption: each dict has the same keys
+    feature_dict = {key: [dic[key] for dic in list_of_dicts] for key in list_of_dicts[0]}
+
+    return feature_dict
+
+
+# wrapper class for loading from pickled pipeline data
+class Wrapper():
+    def __init__(self):
+        pass
+
+
+def get_df_from_pipeline(files, use_pickle=False):
+    from bolide_dispositions import BolideDispositions as bdisp
+    if use_pickle:
+        with open(files, 'rb') as f:
+            bdisplist = pickle.load(f)
+            bDispObj = Wrapper()
+            bDispObj.bolideDispositionProfileList = bdisplist
+    elif type(files) is str:
+        bDispObj = bdisp.from_bolideDatabase(files, verbosity=True, useRamDisk=False)
+    else:
+        bDispObj = bdisp.from_bolideDatabase(files[0], verbosity=True, useRamDisk=False)
+        for i in range(1, len(files)):
+            profile_list = bDispObj.bolideDispositionProfileList
+            bDispObj = bdisp.from_bolideDatabase(files[i], extra_bolideDispositionProfileList=profile_list,
+                                                 verbosity=True, useRamDisk=False)
+
+    # get dict containing lists of features from the bDispObj
+    features = get_features(bDispObj)
+
+    # get list of IDs and list of confidences
+    _id = [disp.ID for disp in bDispObj.bolideDispositionProfileList]
     confidence = [disp.machineOpinions[0].bolideBelief for disp in bDispObj.bolideDispositionProfileList]
 
-    coords = zip(lon, lat)
-    points = [Point(coord[0], coord[1]) for coord in coords]
-    bdf = GeoDataFrame({'detectedBy': sat, 'latitude': lat, 'longitude': lon, 'datetime': dat,
-                        'duration': dur, 'confidence': confidence}, geometry=points, crs="EPSG:4326")
+    # create Point objects
+    lon = features['avgLon']
+    lat = features['avgLat']
+    points = make_points(lon, lat)
+    bdf = GeoDataFrame(dict({'_id': _id, 'confidence': confidence}, **features), geometry=points, crs="EPSG:4326")
+    column_translation = {'avgLon': 'longitude', 'avgLat': 'latitude', 'bolideTime': 'datetime',
+                          'timeDuration': 'duration', 'goesSatellite': 'detectedBy'}
+    bdf = bdf.rename(columns=column_translation)
 
     return bdf
+
+
+def make_points(lons, lats):
+    coords = zip(lons, lats)
+    points = [Point(coord[0], coord[1]) for coord in coords]
+    return points
 
 
 def get_phase(datetime):
@@ -616,16 +664,3 @@ def add_boundary(ax, boundary, boundary_style):
 def force_bdf_class(bdf):
     if isinstance(bdf, GeoDataFrame):
         bdf.__class__ = BolideDataFrame
-
-# def make_point(point):
-#     lon = point['location']['coordinates'][0]
-#     lat = point['location']['coordinates'][1]
-#     return Point(lon, lat)
-
-# def get_gdf(geodata):
-#     points = [make_point(point) for point in geodata]
-#     lat = [point['location']['coordinates'][1] for point in geodata]
-#     energy = [point['energy'] for point in geodata]
-#     time = [point['time'] for point in geodata]
-#     gdf = GeoDataFrame({'time':time,'energy':energy}, geometry=points, crs='epsg:4326')
-#     return gd
