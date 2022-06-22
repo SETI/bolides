@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from lightkurve import LightCurve, LightCurveCollection
 
-from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE
+from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE, ROOT_PATH, GLM_FOV_PATH
 
 
 class BolideDataFrame(GeoDataFrame):
@@ -94,7 +94,7 @@ class BolideDataFrame(GeoDataFrame):
 
         from configparser import ConfigParser
         config = ConfigParser()
-        config.read('bolides/desc.ini')
+        config.read(ROOT_PATH+'/desc.ini')
         self.descriptions = config['neo-bolide']
 
     def annotate_bdf(bdf):
@@ -199,7 +199,7 @@ class BolideDataFrame(GeoDataFrame):
         if 'goes-e' in boundary:
 
             # get data and create polygon
-            fov = Dataset("data/GLM_FOV_edges.nc", "r", format="NETCDF4")
+            fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
             lats = fov.variables['G16_fov_lat'][0]
             lons = fov.variables['G16_fov_lon'][0]
             goes_e = Polygon(zip(lons, lats))
@@ -213,7 +213,7 @@ class BolideDataFrame(GeoDataFrame):
         if 'goes-w' in boundary:
 
             # get data and create polygons
-            fov = Dataset("data/GLM_FOV_edges.nc", "r", format="NETCDF4")
+            fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
             lats = fov.variables['G17_fov_lat'][0]
             lons = fov.variables['G17_fov_lon'][0]
             goes_w = Polygon(zip(lons, lats))
@@ -437,7 +437,7 @@ class BolideDataFrame(GeoDataFrame):
         # detections with detections in the other data if certain closeness
         # criteria based on time and distance are met
         ids = [""] * len(new_data)
-        for num, row in tqdm(self.iterrows(),"Augmenting data", total=len(self)):
+        for num, row in tqdm(self.iterrows(), "Augmenting data", total=len(self)):
             deltas = row['datetime']-new_data['datetime']
             s_deltas = np.abs([delta.total_seconds() for delta in deltas])
             closest = np.argmin(s_deltas)
@@ -646,12 +646,12 @@ def add_boundary(ax, boundary, boundary_style):
     from shapely.geometry import LinearRing
     lines = []
     if 'goes-e' in boundary:
-        fov = Dataset("data/GLM_FOV_edges.nc", "r", format="NETCDF4")
+        fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
         lats = fov.variables['G16_fov_lat'][0]
         lons = fov.variables['G16_fov_lon'][0]
         lines.append(LinearRing(zip(lons, lats)))
     if 'goes-w' in boundary:
-        fov = Dataset("data/GLM_FOV_edges.nc", "r", format="NETCDF4")
+        fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
         lats = fov.variables['G17_fov_lat'][0]
         lons = fov.variables['G17_fov_lon'][0]
         lines.append(LinearRing(zip(lons, lats)))

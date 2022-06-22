@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bolides"
-version = "0.4"
+version = "0.4.5"
 authors = [
   { name="Anthony Ozerov", email="a.ozerov@columbia.edu" },
 ]
@@ -18,23 +18,19 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "requests",
-    "datetime",
-    "warnings",
     "tqdm",
     "numpy",
     "pandas",
-    "pickle",
     "ephem",
     "geopandas",
-    "cartopy",
-    "shapely",
+#    "cartopy == 0.18.0.post1",
+#    "shapely",
     "matplotlib",
     "lightkurve",
-    "configparser",
     "netCDF4",
     "pyproj",
     "astropy",
+    "simplekml",
 ]
 
 [project.urls]
