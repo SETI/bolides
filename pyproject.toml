@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bolides"
+version = "0.4"
+authors = [
+  { name="Anthony Ozerov", email="a.ozerov@columbia.edu" },
+]
+description = "A package to analyze bolide data"
+readme = "README.rst"
+requires-python = ">=3.7"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "requests",
+    "datetime",
+    "warnings",
+    "tqdm",
+    "numpy",
+    "pandas",
+    "pickle",
+    "ephem",
+    "geopandas",
+    "cartopy",
+    "shapely",
+    "matplotlib",
+    "lightkurve",
+    "configparser",
+    "netCDF4",
+    "pyproj",
+    "astropy",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/jcsmithhere/bolides"
+"Bug Tracker" = "https://github.com/jcsmithhere/bolides/issues"
