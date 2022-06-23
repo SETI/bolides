@@ -1,3 +1,16 @@
+from shapely.geometry import Point
+
+
+# wrapper class for loading from pickled pipeline data
+class Wrapper():
+    def __init__(self):
+        pass
+
+
+def make_points(lons, lats):
+    coords = zip(lons, lats)
+    points = [Point(coord[0], coord[1]) for coord in coords]
+    return points
 
 
 def youtube_photometry(video):
