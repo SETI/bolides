@@ -178,55 +178,22 @@ class BolideDataFrame(GeoDataFrame):
         tot_diff = lon_diff + lat_diff
         return self.iloc[tot_diff.argsort()].head(n)
 
-    def clip_boundary(self, boundary=[], intersection=False, interior=True):
+    def clip_boundary(self, boundary=None, intersection=False, interior=True):
         """Filter data to only points within specified boundaries"""
+        assert boundary is not None
 
-        # put bdf into the correct CRS
-        crs = self.geometry.crs
-        bdf = self.to_crs("epsg:4236")
-        from netCDF4 import Dataset
-        from shapely.geometry import Polygon
-        from shapely.ops import unary_union
         import pyproj
-
         # define Azimuthal Equidistant projection
         aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=90, lon_0=0).srs
 
-        polygons = []
+        # put bdf into the correct CRS
+        crs = self.geometry.crs
+        bdf = self.to_crs(aeqd)
 
-        # for each item in the boundary, add it to the list of polygons in the
-        # Azimuthal Equidistant CRS
-        if 'goes-e' in boundary:
-
-            # get data and create polygon
-            fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
-            lats = fov.variables['G16_fov_lat'][0]
-            lons = fov.variables['G16_fov_lon'][0]
-            goes_e = Polygon(zip(lons, lats))
-
-            # use geopandas to re-project it
-            gdf = GeoDataFrame(geometry=[goes_e], crs='epsg:4236')
-            gdf = gdf.to_crs(aeqd)
-            polygons.append(gdf.geometry[0])
-
-        # for the GOES-W position, we can combine the regular and inverted FOV
-        if 'goes-w' in boundary:
-
-            # get data and create polygons
-            fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
-            lats = fov.variables['G17_fov_lat'][0]
-            lons = fov.variables['G17_fov_lon'][0]
-            goes_w = Polygon(zip(lons, lats))
-            lats = fov.variables['G17_fov_lat_inverted'][0]
-            lons = fov.variables['G17_fov_lon_inverted'][0]
-            goes_w_i = Polygon(zip(lons, lats))
-
-            # use geopandas to re-project them
-            gdf = GeoDataFrame(geometry=[goes_w, goes_w_i], crs='epsg:4236')
-            gdf = gdf.to_crs(aeqd)
-            polygons.append(unary_union([gdf.geometry[0], gdf.geometry[1]]))
+        polygons = [get_boundary(b) for b in boundary]
 
         # either take intersection of FOVs or the union to get a final polygon
+        from shapely.ops import unary_union
         if intersection:
             final_polygon = polygons[0]
             for polygon in polygons:
@@ -234,8 +201,6 @@ class BolideDataFrame(GeoDataFrame):
         else:
             final_polygon = unary_union(polygons)
 
-        # project bdf to Azimuthal Equidistant CRS
-        bdf = bdf.to_crs(aeqd)
         # clip with the polygon, which is in Azimuthal Equidistant
         points_in_poly = [pt.within(final_polygon) for pt in bdf['geometry']]
         if interior:
@@ -248,6 +213,31 @@ class BolideDataFrame(GeoDataFrame):
         force_bdf_class(bdf)
 
         return bdf
+
+    def filter_observation(self, sensors=None):
+
+        indices = []
+        for sensor in sensors:
+            filename = sensor
+            if sensor == 'glm16':
+                filename = ROOT_PATH + '/data/glm16_obs.csv'
+            if sensor == 'glm17':
+                filename = ROOT_PATH + '/data/glm17_obs.csv'
+            bdfs = []
+            fov_df = pd.read_csv(filename)
+            for i in range(len(fov_df)):
+                start = None if fov_df.start.isna()[i] else fov_df.start[i]
+                end = None if fov_df.end.isna()[i] else fov_df.end[i]
+                boundary = fov_df.boundary[i]
+                bdfs.append(self.clip_boundary([boundary]).filter_date(start=start, end=end))
+            bdf = pd.concat(bdfs)
+            indices += list(bdf.index)
+
+        indices = list(set(indices))
+        indices.sort()
+        filtered = self.loc[indices, :]
+        force_bdf_class(filtered)
+        return filtered
 
     def plot_detections(self, crs=ccrs.AlbersEqualArea(central_longitude=-100), category=None,
                         coastlines=True, style=MPLSTYLE, boundary=['goes-w', 'goes-e'], boundary_style={}, **kwargs):
@@ -630,7 +620,9 @@ def get_solarhour(datetime, lon):
     return solarhour
 
 
-def add_boundary(ax, boundary, boundary_style):
+def add_boundary(ax, boundary=None, boundary_style={}):
+
+    assert boundary is not None
 
     # for filename in boundary:
     #     with open('data/'+filename+'.pkl', 'rb') as f:
@@ -642,23 +634,89 @@ def add_boundary(ax, boundary, boundary_style):
     for key, value in boundary_defaults.items():
         if key not in boundary_style:
             boundary_style[key] = value
+
+    polygons = [get_boundary(b) for b in boundary]
+
+    crs = ccrs.AzimuthalEquidistant(central_latitude=90)
+    ax.add_geometries(polygons, crs=crs, **boundary_style)
+
+
+def get_boundary(boundary):
     from netCDF4 import Dataset
-    from shapely.geometry import LinearRing
-    lines = []
-    if 'goes-e' in boundary:
-        fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
-        lats = fov.variables['G16_fov_lat'][0]
-        lons = fov.variables['G16_fov_lon'][0]
-        lines.append(LinearRing(zip(lons, lats)))
-    if 'goes-w' in boundary:
+    from shapely.geometry import Polygon
+
+    if boundary == 'goes-w-ni':
         fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
         lats = fov.variables['G17_fov_lat'][0]
         lons = fov.variables['G17_fov_lon'][0]
-        lines.append(LinearRing(zip(lons, lats)))
+        polygon = Polygon(zip(lons, lats))
+
+    elif boundary == 'goes-w-i':
+        fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
         lats = fov.variables['G17_fov_lat_inverted'][0]
         lons = fov.variables['G17_fov_lon_inverted'][0]
-        lines.append(LinearRing(zip(lons, lats)))
-    ax.add_geometries(lines, crs=ccrs.PlateCarree(), **boundary_style)
+        polygon = Polygon(zip(lons, lats))
+
+    elif boundary == 'goes-17-89.5':
+        fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
+        lats = fov.variables['G17_fov_lat'][0]
+        lons = np.array(fov.variables['G17_fov_lon'][0]) + (-89.5-(-137.2))
+        polygon = Polygon(zip(lons, lats))
+
+    elif boundary == 'goes-w':
+        from shapely.ops import unary_union
+
+        # get data and create polygons
+        fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
+        goes_w_ni = get_boundary('goes-w-ni')
+        goes_w_i = get_boundary('goes-w-i')
+        return unary_union([goes_w_ni, goes_w_i])
+
+    elif boundary == 'goes-e':
+        fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
+        lats = fov.variables['G16_fov_lat'][0]
+        lons = fov.variables['G16_fov_lon'][0]
+        polygon = Polygon(zip(lons, lats))
+
+    elif boundary == 'fy4a-n':
+        lons = [55, 157.4, 127, 81.75]
+        lats = [56.25, 56.25, 14.92, 14.92]
+        polygon = fy4a_corners_to_boundary(lons, lats)
+
+    elif boundary == 'fy4a-s':
+        lons = [81.75, 127, 157.4, 55]
+        lats = [-14.92, -14.92, -56.25, -56.25]
+        polygon = fy4a_corners_to_boundary(lons, lats)
+
+    return aeqd_from_lonlat(polygon)
+
+
+def aeqd_from_lonlat(polygon):
+    import pyproj
+    # define Azimuthal Equidistant projection
+    aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=90, lon_0=0).srs
+    gdf = GeoDataFrame(geometry=[polygon], crs='epsg:4236')
+    gdf = gdf.to_crs(aeqd)
+    return gdf.geometry[0]
+
+
+# get corner points of fy4a FOV and return boundary
+def fy4a_corners_to_boundary(lons, lats):
+    import pyproj
+    from shapely.geometry import Point, Polygon, LinearRing
+
+    points = [Point(lon, lat) for lon, lat in zip(lons, lats)]
+    gdf = GeoDataFrame(geometry=points, crs='epsg:4236')
+    geos = pyproj.Proj(proj='geos', ellps='WGS84', datum='WGS84', h=35785831.0, lon_0=105).srs
+    gdf = gdf.to_crs(geos)
+    points = gdf.geometry
+    linestring = LinearRing(zip([p.x for p in points], [p.y for p in points]))
+    length = linestring.length
+    points = [linestring.interpolate(x) for x in np.linspace(0, length, 1000)]
+    polygon = Polygon(zip([p.x for p in points], [p.y for p in points]))
+    gdf = GeoDataFrame(geometry=[polygon], crs=geos)
+    gdf = gdf.to_crs('epsg:4236')
+    return gdf.geometry[0]
 
 
 def force_bdf_class(bdf):
