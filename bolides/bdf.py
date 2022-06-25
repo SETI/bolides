@@ -15,6 +15,7 @@ import matplotlib.dates as mdates
 from lightkurve import LightCurve, LightCurveCollection
 
 from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE, ROOT_PATH
+from .constants import GLM_STEREO_MIDPOINT
 from .utils import make_points
 
 
@@ -180,16 +181,7 @@ class BolideDataFrame(GeoDataFrame):
         bdf = self.to_crs(aeqd)
 
         from .fov_utils import get_boundary
-        polygons = [get_boundary(b) for b in boundary]
-
-        # either take intersection of FOVs or the union to get a final polygon
-        from shapely.ops import unary_union
-        if intersection:
-            final_polygon = polygons[0]
-            for polygon in polygons:
-                final_polygon = final_polygon.intersection(polygon)
-        else:
-            final_polygon = unary_union(polygons)
+        final_polygon = get_boundary(boundary, intersection=intersection, collection=False)
 
         # clip with the polygon, which is in Azimuthal Equidistant
         points_in_poly = [pt.within(final_polygon) for pt in bdf['geometry']]
@@ -229,8 +221,10 @@ class BolideDataFrame(GeoDataFrame):
         force_bdf_class(filtered)
         return filtered
 
-    def plot_detections(self, crs=ccrs.AlbersEqualArea(central_longitude=-100), category=None,
-                        coastlines=True, style=MPLSTYLE, boundary=['goes-w', 'goes-e'], boundary_style={}, **kwargs):
+    def plot_detections(self, crs=ccrs.AlbersEqualArea(central_longitude=GLM_STEREO_MIDPOINT),
+                        category=None, coastlines=True, style=MPLSTYLE,
+                        boundary=None, boundary_style={}, figsize=(8, 8),
+                        **kwargs):
         """Plot detections of bolides.
 
         Reprojects the geometry of bdf to the crs given, and scatters the points
@@ -257,18 +251,20 @@ class BolideDataFrame(GeoDataFrame):
 
         import matplotlib.cm as cmx
 
-        # default parameters put into kwargs if not specified by user
-        defaults = {'marker': '.', 'color': 'red', 'cmap': plt.get_cmap('viridis')}
-        if 'c' in kwargs:
-            del defaults['color']
-        for key, value in defaults.items():
-            if key not in kwargs:
-                kwargs[key] = value
-
         # get geopandas projection and reproject dataframe points
         crs_proj4 = crs.proj4_init
         bdf_proj = self.to_crs(crs_proj4)
         # filter out rows with no geometry
+
+        # default parameters put into kwargs if not specified by user
+        defaults = {'marker': '.', 'color': 'red', 'cmap': plt.get_cmap('viridis')}
+        if 'c' in kwargs:
+            del defaults['color']
+            kwargs['c'] = kwargs['c'][~bdf_proj.geometry.is_empty]
+        for key, value in defaults.items():
+            if key not in kwargs:
+                kwargs[key] = value
+
         bdf_proj = bdf_proj[~bdf_proj.geometry.is_empty]
 
         # get x,y lists
@@ -317,6 +313,95 @@ class BolideDataFrame(GeoDataFrame):
             from .fov_utils import add_boundary
             if boundary:
                 add_boundary(ax, boundary, boundary_style)
+
+        return fig, ax
+
+    def plot_density(self, crs=ccrs.AlbersEqualArea(central_longitude=GLM_STEREO_MIDPOINT),
+                     bandwidth=5, coastlines=True, style=MPLSTYLE,
+                     boundary=None, boundary_style={},
+                     kde_params={}, lat_resolution=100, lon_resolution=50,
+                     n_levels=100, figsize=(8, 8), **kwargs):
+
+        # The cartopy library used by plot_density currently has many
+        # warnings about the shapely library deprecating things...
+        # This code suppresses those warnings
+        filterwarnings("ignore", message="__len__ for multi-part")
+        filterwarnings("ignore", message="Iteration over multi-part")
+
+        from sklearn.neighbors import KernelDensity
+        from math import pi
+
+        bdf = self[~self.latitude.isnull()]
+
+        data = np.vstack([np.radians(bdf.latitude), np.radians(bdf.longitude)]).T
+        if 'kernel' not in kde_params:
+            kde_params['kernel'] = 'gaussian'
+
+        from math import radians
+        kde = KernelDensity(bandwidth=radians(bandwidth), metric="haversine", **kde_params)
+        kde.fit(data)
+
+        X, Y = np.meshgrid(np.linspace(-pi, pi, lat_resolution),
+                           np.linspace(-pi/2, pi/2, lon_resolution))
+        xy = np.vstack([Y.ravel(), X.ravel()]).T
+
+        density_per_steradian = np.exp(kde.score_samples(xy))
+
+        # convert density per steradian to bolides per sqkm
+        steradian_per_sqdeg = 1/3282.80635
+        earth_sqkm = 510 * 10**6
+        earth_sqdeg = 41252.96
+        sqdeg_per_sqkm = earth_sqdeg / earth_sqkm
+        num_bolides = len(self)
+        bolides_per_steradian = num_bolides * density_per_steradian
+        bolides_per_sqkm = bolides_per_steradian * steradian_per_sqdeg * sqdeg_per_sqkm
+
+        Z = bolides_per_sqkm
+        Z = Z.reshape(X.shape)
+        levels = np.linspace(0, Z.max(), n_levels)
+
+        x = np.degrees(X)
+        y = np.degrees(Y)
+        z = Z
+
+        from .fov_utils import get_mask
+        mask = get_mask(np.degrees(xy), boundary).reshape(X.shape)
+
+        # default parameters put into kwargs if not specified by user
+        default_cmap = plt.get_cmap('viridis').copy()
+        default_cmap.set_under('none')
+        defaults = {'alpha': 1, 'antialiased': False, 'cmap': default_cmap}
+        for key, value in defaults.items():
+            if key not in kwargs:
+                kwargs[key] = value
+
+        # using the given style,
+        with plt.style.context(style):
+
+            # generate Figure and GeoAxes with the given proejction
+            fig, ax = plt.subplots(subplot_kw={'projection': crs}, figsize=figsize)
+
+            ax.stock_img()  # plot background map
+
+            # plot contour, passing arguments through
+            filled_c = ax.contourf(x, y, z*mask, levels=levels[1:],
+                                   transform=ccrs.PlateCarree(), **kwargs)
+
+            # make lines invisible
+            for c in filled_c.collections:
+                c.set_edgecolor('none')
+                c.set_linewidth(0.000000000001)
+
+            if coastlines:
+                ax.coastlines()  # plot coastlines
+
+            # plot sensor FOV
+            from .fov_utils import add_boundary
+            if boundary:
+                add_boundary(ax, boundary, boundary_style)
+
+            plt.colorbar(filled_c, alpha=kwargs['alpha'],
+                         label='bolide density (km$^{-2}$)')
 
         return fig, ax
 
@@ -405,12 +490,11 @@ class BolideDataFrame(GeoDataFrame):
         force_bdf_class(result)
         return result
 
-    # currently only supports augmenting GLM data with other data
-    # TODO: match on a column other than _id, as not all data sources have id
+    # TODO: match on a column other than _id?
     def augment(self, new_data, time_limit=300, score_limit=5, intersection=False):
         """Augment BolideDataFrame with data from another source"""
 
-        # get data from other source, clear _id column
+        # make _id column if doesn't exist
         if "_id" not in self.columns:
             self["_id"] = np.arange(len(self))
 
@@ -515,6 +599,7 @@ def get_df_from_usg():
     df['datetime'] = [datetime.fromisoformat(date) for date in df['date']]
     del df['date']
     df['energy'] = df['energy'].astype(float)
+    df['vel'] = df['vel'].astype(float)
 
     # create a list to be used as a geometry column
     lats = df['latitude']
@@ -526,37 +611,16 @@ def get_df_from_usg():
     return gdf
 
 
-def get_df_from_pipeline(files, use_pickle=False):
-    from bolide_dispositions import BolideDispositions as bdisp
-    from .pipeline_utils import get_features
+def get_df_from_pipeline(files, min_confidence=0):
 
-    if use_pickle:
-        from .utils import Wrapper
-        with open(files, 'rb') as f:
-            bdisplist = pickle.load(f)
-            bDispObj = Wrapper()
-            bDispObj.bolideDispositionProfileList = bdisplist
-    elif type(files) is str:
-        bDispObj = bdisp.from_bolideDatabase(files, verbosity=True, useRamDisk=False)
-    else:
-        bDispObj = bdisp.from_bolideDatabase(files[0], verbosity=True, useRamDisk=False)
-        for i in range(1, len(files)):
-            profile_list = bDispObj.bolideDispositionProfileList
-            bDispObj = bdisp.from_bolideDatabase(files[i], extra_bolideDispositionProfileList=profile_list,
-                                                 verbosity=True, useRamDisk=False)
-
-    # get dict containing lists of features from the bDispObj
-    features = get_features(bDispObj)
-
-    # get list of IDs and list of confidences
-    _id = [disp.ID for disp in bDispObj.bolideDispositionProfileList]
-    confidence = [disp.machineOpinions[0].bolideBelief for disp in bDispObj.bolideDispositionProfileList]
+    from .pipeline_utils import dict_from_zodb
+    dict_of_lists = dict_from_zodb(files=files, min_confidence=min_confidence)
 
     # create Point objects
-    lon = features['avgLon']
-    lat = features['avgLat']
+    lon = dict_of_lists['avgLon']
+    lat = dict_of_lists['avgLat']
     points = make_points(lon, lat)
-    bdf = GeoDataFrame(dict({'_id': _id, 'confidence': confidence}, **features), geometry=points, crs="EPSG:4326")
+    bdf = GeoDataFrame(dict_of_lists, geometry=points, crs="EPSG:4326")
     column_translation = {'avgLon': 'longitude', 'avgLat': 'latitude', 'bolideTime': 'datetime',
                           'timeDuration': 'duration', 'goesSatellite': 'detectedBy'}
     bdf = bdf.rename(columns=column_translation)

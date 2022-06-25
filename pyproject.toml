@@ -31,6 +31,7 @@ dependencies = [
     "pyproj",
     "astropy",
     "simplekml",
+    "scikit-learn",
 ]
 
 [project.urls]
