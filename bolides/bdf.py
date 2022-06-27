@@ -1,3 +1,4 @@
+import os
 import requests
 from datetime import datetime
 from warnings import warn, filterwarnings
@@ -15,7 +16,7 @@ import matplotlib.dates as mdates
 from lightkurve import LightCurve, LightCurveCollection
 
 from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE, ROOT_PATH
-from .constants import GLM_STEREO_MIDPOINT
+from .crs import DefaultCRS
 from .utils import make_points
 
 
@@ -26,21 +27,46 @@ class BolideDataFrame(GeoDataFrame):
     Parameters
     ----------
     source : str
-        Specifies the source for the initialized. Can be either ``'website'``
-        to initialize from neo-bolide-ndc.nasa.gov data, ``'pickle'`` to
-        initialize from a pickled GeoDataFrame, ``'csv'`` to initialize from a
-        .csv file, ``'usg'`` to initialize from US Government data at
-        cneos.jpl.nasa.gov/fireballs/, or ``'pipeline'`` to initialize from
-        ZODB database files from the pipeline.
+        Specifies the source for the initialized. Can be:
+
+        - ``'website'``: initialize from neo-bolide-ndc.nasa.gov data
+        - ``'pipeline'`` to initialize from ZODB database files from the GLM detection pipeline.
+        - ``'pickle'``: initialize from a pickled GeoDataFrame
+        - ``'csv'``: initialize from a .csv file
+        - ``'usg'``: initialize from US Government data at cneos.jpl.nasa.gov/fireballs/
     files : str, list
-        For ``'pickle'``, specifies the filename of the pickled object.
-        For ``'csv'``, specifies the filename of the csv.
-        For ``'pipeline'``, specifies the filename(s) of the database file(s)
+
+        Specifies files to be used depending on source.
+
+        - For ``'pickle'``, specifies the filename of the pickled object.
+        - For ``'csv'``, specifies the filename of the csv.
+        - For ``'pipeline'``, specifies the filename(s) of the database file(s)
     """
     def __init__(self, source='website', files=None):
 
         # Initialize differently based on source.
         # Each if statement creates a GeoDataFrame with the EPSG:4326 CRS
+
+        # input standardization
+        source = source.lower()
+        if type(files) is str:
+            files = [files]
+
+        # input validation
+        valid_sources = ['website', 'usg', 'pickle', 'csv', 'pipeline']
+        if source not in valid_sources:
+            raise ValueError("Source \""+str(source)+"\" is unsupported. Please use one of "+str(valid_sources))
+
+        if source in ['pickle', 'csv', 'pipeline'] and files is None:
+            raise ValueError("Files must be specified for the given source \""+source+"\"")
+
+        if source in ['pickle', 'csv', 'pipeline'] and not all([os.path.isfile(f) for f in files]):
+            paths = "\n".join([os.path.abspath(f) for f in files])
+            raise ValueError("At least one of the files specified does not exist.\
+                             Here are their absolute paths:\n"+paths)
+
+        if source in ['pickle', 'csv'] and len(files) > 1:
+            warn("More than one file given for source \""+source+"\". Only the first one will be used.")
 
         if source == 'website':
             init_gdf = get_df_from_website()
@@ -51,18 +77,10 @@ class BolideDataFrame(GeoDataFrame):
             init_gdf['source'] = 'usg'
 
         elif source == 'pickle':
-            if type(files) is not list:
-                files = [files]
-            if len(files) > 1:
-                warn("More than one file given. Only the first is used.")
             with open(files[0], 'rb') as pkl:
                 init_gdf = pickle.load(pkl)
 
         elif source == 'csv':
-            if type(files) is not list:
-                files = [files]
-            if len(files) > 1:
-                warn("More than one file given. Only the first is used.")
             init_gdf = pd.read_csv(files[0], index_col=0, parse_dates=['datetime'], keep_default_na=False)
             lats = init_gdf['latitude']
             lons = init_gdf['longitude']
@@ -73,9 +91,7 @@ class BolideDataFrame(GeoDataFrame):
             init_gdf = get_df_from_pipeline(files)
             init_gdf['source'] = 'pipeline'
 
-        else:
-            raise('Unknown source '+str(source))
-
+        # rearrange first columns
         cols = list(init_gdf.columns.values)
         first_cols = ['datetime', 'longitude', 'latitude']
         first_cols.reverse()
@@ -221,7 +237,7 @@ class BolideDataFrame(GeoDataFrame):
         force_bdf_class(filtered)
         return filtered
 
-    def plot_detections(self, crs=ccrs.AlbersEqualArea(central_longitude=GLM_STEREO_MIDPOINT),
+    def plot_detections(self, crs=DefaultCRS(),
                         category=None, coastlines=True, style=MPLSTYLE,
                         boundary=None, boundary_style={}, figsize=(8, 8),
                         **kwargs):
@@ -261,9 +277,8 @@ class BolideDataFrame(GeoDataFrame):
         if 'c' in kwargs:
             del defaults['color']
             kwargs['c'] = kwargs['c'][~bdf_proj.geometry.is_empty]
-        for key, value in defaults.items():
-            if key not in kwargs:
-                kwargs[key] = value
+        from .utils import reconcile_input
+        kwargs = reconcile_input(kwargs, defaults)
 
         bdf_proj = bdf_proj[~bdf_proj.geometry.is_empty]
 
@@ -316,7 +331,7 @@ class BolideDataFrame(GeoDataFrame):
 
         return fig, ax
 
-    def plot_density(self, crs=ccrs.AlbersEqualArea(central_longitude=GLM_STEREO_MIDPOINT),
+    def plot_density(self, crs=DefaultCRS(),
                      bandwidth=5, coastlines=True, style=MPLSTYLE,
                      boundary=None, boundary_style={},
                      kde_params={}, lat_resolution=100, lon_resolution=50,
@@ -371,9 +386,8 @@ class BolideDataFrame(GeoDataFrame):
         default_cmap = plt.get_cmap('viridis').copy()
         default_cmap.set_under('none')
         defaults = {'alpha': 1, 'antialiased': False, 'cmap': default_cmap}
-        for key, value in defaults.items():
-            if key not in kwargs:
-                kwargs[key] = value
+        from .utils import reconcile_input
+        kwargs = reconcile_input(kwargs, defaults)
 
         # using the given style,
         with plt.style.context(style):

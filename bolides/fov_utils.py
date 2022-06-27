@@ -5,34 +5,79 @@ import cartopy.crs as ccrs
 from shapely.geometry import Point, Polygon, LinearRing
 
 from . import GLM_FOV_PATH
+from .utils import reconcile_input
 
 
 def add_boundary(ax, boundary=None, boundary_style={}):
+    """Add a boundary to Cartopy GeoAxesSubplot"""
 
     assert boundary is not None
 
-    # for filename in boundary:
-    #     with open('data/'+filename+'.pkl', 'rb') as f:
-    #         b = pickle.load(f)
-    #     ax.add_geometries([b[0]], crs=b[1], facecolor='none',
-    #                       edgecolor='k', alpha=1, linewidth=3)
-
+    # define defaults and add them to the user-defined style,
+    # without overriding any user-specified parameters
     boundary_defaults = {"facecolor": "none"}
-    for key, value in boundary_defaults.items():
-        if key not in boundary_style:
-            boundary_style[key] = value
+    boundary_style = reconcile_input(boundary_style, boundary_defaults)
 
+    # get Polygons representing the boundaries
     polygons = get_boundary(boundary)
 
-    crs = ccrs.AzimuthalEquidistant(central_latitude=90)
-    if not hasattr(polygons, '__iter__'):
+    # if polygons is not a list, make it a list.
+    if type(polygons) is not list:
         polygons = [polygons]
+
+    # define the crs of the polygons
+    crs = ccrs.AzimuthalEquidistant(central_latitude=90)
+    # add the polygons to the GeoAxesSubplot, passing the boundary style in
     ax.add_geometries(polygons, crs=crs, **boundary_style)
 
 
-def get_boundary(boundary, intersection=False, collection=True):
+def get_boundary(boundary, collection=True, intersection=False):
+    """Get specified boundary polygons.
+
+    Possible values in boundary:
+
+    - ``'goes'``: Combined FOV of the GLM aboard GOES-16 and GOES-17
+    - ``'goes-w'``: GOES-West position GLM FOV, currently corresponding to GOES-17.
+      Note that this combines the inverted and non-inverted FOVs.
+    - ``'goes-e'``: GOES-East position GLM FOV, currently corresopnding to GOES-16.
+    - ``'goes-w-ni'``: GOES-West position GLM FOV, when GOES-17 is not inverted (summer).
+    - ``'goes-w-i'``: GOES-West position GLM FOV, when GOES-17 is inverted (winter).
+    - ``'goes-17-89.5'``: GOES-17 GLM FOV when it was in its checkout orbit.
+    - ``'fy4a'``: Combined FOV of the Fengyun-4A LMI, in both North and South configurations.
+    - ``'fy4a-n'``: Fengyun-4A LMI FOV when in the North configuration (summer).
+    - ``'fy4a-s'``: Fengyun-4A LMI FOV when in the South configuration (winter).
+
+    Parameters
+    ----------
+    boundary: str or iterable with multiple strings
+        Specifies the boundaries desired. Currently supports:
+    collection: bool
+        If boundary contains multiple boundaries,
+        ``True`` will return a list of boundaries,
+        while ``False`` will return their combination (according to the intersection argument)
+    intersection: bool
+        If boundary contains multiple strings and collection is ``False``, when True will return
+        the intersection of the fields-of-view, when False will return their union.
+
+    Returns
+    -------
+    `~shapely.geometry.Polygon` or list of `~shapely.geometry.Polygon` in the Azimuthal Equidistant
+    Coordinate Reference System with a central latitude of 90, central longitude of 0.
+    """
     from netCDF4 import Dataset
     from shapely.ops import unary_union
+
+    if type(boundary) is str:
+        boundary = boundary.lower()
+
+    valid_boundaries = ['goes-w-ni', 'goes-w-i', 'goes-w', 'goes-e', 'goes',
+                        'fy4a-s', 'fy4a-n', 'fy4a', 'goes-17-89.5']
+
+    if type(boundary) is str and boundary not in valid_boundaries:
+        raise ValueError("unknown boundary \""+boundary+"\"")
+
+    if type(boundary) is not str and not hasattr(boundary, '__iter__'):
+        raise ValueError("boundary must be a string or list")
 
     if boundary == 'goes-w-ni':
         fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
@@ -56,10 +101,10 @@ def get_boundary(boundary, intersection=False, collection=True):
         return aeqd_from_lonlat(polygon)
 
     elif boundary == 'goes-w':
-        return get_boundary(['goes-w-ni','goes-w-i'], collection=False)
+        return get_boundary(['goes-w-ni', 'goes-w-i'], collection=False)
 
     elif boundary == 'goes':
-        return get_boundary(['goes-w','goes-e'], collection=False)
+        return get_boundary(['goes-w', 'goes-e'], collection=False)
 
     elif boundary == 'goes-e':
         fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
@@ -81,7 +126,7 @@ def get_boundary(boundary, intersection=False, collection=True):
         return aeqd_from_lonlat(polygon)
 
     elif boundary == 'fy4a':
-        return get_boundary(['fy4a-s','fy4a-n'], collection=False)
+        return get_boundary(['fy4a-s', 'fy4a-n'], collection=False)
 
     polygons = []
     for b in boundary:

@@ -11,3 +11,5 @@ from .bolidelist import *
 from .bdf import BolideDataFrame
 from .utils import youtube_photometry
 from .constants import GOES_W_LON, GOES_E_LON, GLM_STEREO_MIDPOINT, FY4A_LON
+
+__all__ = ["BolideDataFrame"]
