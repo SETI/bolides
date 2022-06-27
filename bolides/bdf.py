@@ -17,7 +17,7 @@ from lightkurve import LightCurve, LightCurveCollection
 
 from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE, ROOT_PATH
 from .crs import DefaultCRS
-from .utils import make_points
+from .utils import make_points, reconcile_input
 
 
 class BolideDataFrame(GeoDataFrame):
@@ -138,19 +138,21 @@ class BolideDataFrame(GeoDataFrame):
     def filter_date(self, start=None, end=None, inplace=False):
         """Filter bolides by date.
 
-        Filters the BolideDataFrame using dates given in ISO format.
+        Filters the `~BolideDataFrame` using dates given in ISO format.
+        `start` or `end` can be left unspecified to only bound the dates on one end.
 
         Parameters
         ----------
         start, end: str
             ISO-format strings that can be read by `~datetime.datetime.fromisoformat`.
         inplace: bool
-            If True, the BolideDataFrame of this method is altered. If False, it is not, so the returned
-            BolideDataFrame must be used.
+            If True, the `~BolideDataFrame` of this method is altered. If False, it is not, so the returned
+            `~BolideDataFrame` must be used.
 
         Returns
         -------
-        new_bdf: BolideDataFrame"""
+        `~BolideDataFrame`
+        """
         new_bdf = self
 
         # drop data before start date, if specified
@@ -173,20 +175,66 @@ class BolideDataFrame(GeoDataFrame):
         return new_bdf
 
     def get_closest_by_time(self, datestr, n=1):
-        """Get the n bolides closest to a given iso-format date string"""
+        """Get the n bolides closest to a given iso-format date string
+
+        Parameters
+        ----------
+        datestr : str
+            ISO-format string that can be read by `~datetime.datetime.fromisoformat`.
+        n : int
+            Number of closest detections to return.
+
+        Returns
+        -------
+        bdf : `~BolideDataFrame`
+            The filtered data.
+
+        """
+
         dt = datetime.fromisoformat(datestr)
         return self.iloc[(self['datetime'] - dt).abs().argsort()].head(n)
 
     def get_closest_by_loc(self, lon, lat, n=1):
-        """Get the n bolides closest to a given longitude and latitude"""
+        """Get the n bolides closest to a given longitude and latitude
+
+        Parameters
+        ----------
+        lon, lat : int
+            Longitude and latitude to search for bolides near.
+        n : int
+            Number of closest detections to return.
+
+        Returns
+        -------
+        bdf : `~BolideDataFrame`
+            The filtered data.
+
+        """
         lon_diff = (self['longitude'] - lon).abs()
         lat_diff = (self['latitude'] - lat).abs()
         tot_diff = lon_diff + lat_diff
         return self.iloc[tot_diff.argsort()].head(n)
 
-    def clip_boundary(self, boundary=None, intersection=False, interior=True):
-        """Filter data to only points within specified boundaries"""
-        assert boundary is not None
+    def filter_boundary(self, boundary, intersection=False, interior=True):
+        """Filter data to only points within specified boundaries.
+
+        Parameters
+        ----------
+        boundary: str or list of str
+            The boundary (boundaries) to filter the `~BolideDataFrame` by.
+            Refer to `~bolides.fov_utils.get_boundary`.
+        intersection: bool
+            - True: keep detections within the union of all boundaries given.
+            - False: keep detections within the intersection of all boundaries given.
+        interior: bool
+            - True: default behavior.
+            - False: keep detections outside the union or intersection of the boundaries, instead of inside.
+
+        Returns
+        -------
+        `~BolideDataFrame`
+            The filtered `~BolideDataFrame`
+        """
 
         import pyproj
         # define Azimuthal Equidistant projection
@@ -212,17 +260,50 @@ class BolideDataFrame(GeoDataFrame):
 
         return bdf
 
-    def filter_observation(self, sensors=None):
+    def filter_observation(self, sensors):
+        """Filter data to only points observable (in time and space) by a given sensor.
+
+        Parameters
+        ----------
+        sensors: str or list of str
+            The sensor(s) to filter the `~BolideDataFrame` by:
+            - ``'glm16'``: The Geostationary Lightning Mapper aboard GOES-16.
+            - ``'glm17'``: The Geostationary Lightning Mapper aboard GOES-17.
+            Note that the biannual yaw flips of GOES-17 are taken into account.
+
+        Returns
+        -------
+        `~BolideDataFrame`
+            The filtered `~BolideDataFrame`
+        """
+
+        # input standardization and validation
+        if type(sensors) is str:
+            sensors = [sensors]
+        if type(sensors) is not list or not all([type(s) is str for s in sensors]):
+            raise ValueError("Sensors must be a string or list of strings")
+        sensors = [sensors.lower() for sensor in sensors]
+
+        valid_sensors = ['glm16', 'glm17']
 
         indices = []
         for sensor in sensors:
             filename = sensor
             if sensor == 'glm16':
                 filename = ROOT_PATH + '/data/glm16_obs.csv'
-            if sensor == 'glm17':
+            elif sensor == 'glm17':
                 filename = ROOT_PATH + '/data/glm17_obs.csv'
+            else:
+                raise ValueError("Invalid sensor \""+sensor+"\". sensors must be in "+str(valid_sensors))
+
             bdfs = []
+
+            # read csv defining the observation times and FOV
             fov_df = pd.read_csv(filename)
+
+            # for each observation time + FOV, filter_date by the observation
+            # times, filter_boundary by the FOV, and append result to the list
+            # of BolideDataFrames
             for i in range(len(fov_df)):
                 start = None if fov_df.start.isna()[i] else fov_df.start[i]
                 end = None if fov_df.end.isna()[i] else fov_df.end[i]
@@ -231,8 +312,11 @@ class BolideDataFrame(GeoDataFrame):
             bdf = pd.concat(bdfs)
             indices += list(bdf.index)
 
+        # get a list of unique indices, and sort them
         indices = list(set(indices))
         indices.sort()
+
+        # get the final filtered BolideDataFrame and return
         filtered = self.loc[indices, :]
         force_bdf_class(filtered)
         return filtered
@@ -248,16 +332,34 @@ class BolideDataFrame(GeoDataFrame):
 
         Parameters
         ----------
-        crs : cartopy Coordinate Reference System
-        category: str
-            The name of a categorical column in the BolideDataFrame
+        crs : `~cartopy.crs.CRS`
+            The map projection to use. Refer to
+            https://scitools.org.uk/cartopy/docs/latest/reference/projections.html.
+        boundary : str or list of str
+            The boundaries to plot.
+            Refer to `~bolides.fov_utils.get_boundary`.
+        category : str
+            The name of a categorical column in the `~BolideDataFrame`
+        **kwargs :
+            Keyword arguments passed through to `~matplotlib.pyplot.scatter`.
+
+        Other Parameters
+        ----------------
         coastlines: bool
+            Whether or not to draw coastlines.
         style : str
+            The matplotlib style to use. Refer to
+            https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
+        boundary_style : dict
+            The kwargs to use when plotting the boundary.
+            Refer to `~cartopy.mpl.geoaxes.GeoAxes.add_geometries`.
+        figsize : tuple
+            The size (width, height) of the plotted figure.
 
         Returns
         -------
-        fig : Matplotlib Figure
-        ax : Cartopy GeoAxesSubplot
+        fig : `~matplotlib.pyplot.figure`
+        ax : `~cartopy.mpl.geoaxes.GeoAxesSubplot`
         """
         # The cartopy library used by plot_detections currently has many
         # warnings about the shapely library deprecating things...
@@ -277,7 +379,6 @@ class BolideDataFrame(GeoDataFrame):
         if 'c' in kwargs:
             del defaults['color']
             kwargs['c'] = kwargs['c'][~bdf_proj.geometry.is_empty]
-        from .utils import reconcile_input
         kwargs = reconcile_input(kwargs, defaults)
 
         bdf_proj = bdf_proj[~bdf_proj.geometry.is_empty]
@@ -336,6 +437,52 @@ class BolideDataFrame(GeoDataFrame):
                      boundary=None, boundary_style={},
                      kde_params={}, lat_resolution=100, lon_resolution=50,
                      n_levels=100, figsize=(8, 8), **kwargs):
+        """Plot bolide detection density.
+
+        Density is computed using scikit-learn's `~sklearn.neighbors.KernelDensity`
+        using the haversine distance metric (as the data is in longitude and latitude)
+        and gaussian kernel by default.
+        It is then gridded, projected, and plotted.
+
+        Parameters
+        ----------
+        crs : `~cartopy.crs.CRS`
+            The map projection to use. Refer to
+            https://scitools.org.uk/cartopy/docs/latest/reference/projections.html.
+        bandwidth : float
+            The bandwidth of the Kernel Density Estimator, in degrees.
+        boundary : str or list of str
+            The boundaries to plot and clip the density by.
+            Refer to `~bolides.fov_utils.get_boundary`.
+        n_levels : int
+            Number of discrete density levels to plot.
+        lat_resolution, lon_resolution : ints
+            The number of discrete latitude and longitude levels when gridding the density.
+        **kwargs :
+            Keyword arguments passed through to `~cartopy.mpl.geoaxes.GeoAxes.contourf`.
+
+        Other Parameters
+        ----------------
+        coastlines : bool
+            Whether or not to draw coastlines.
+        style : str
+            The matplotlib style to use. Refer to
+            https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
+        boundary_style : dict
+            The kwargs to use when plotting the boundary.
+            Refer to `~cartopy.mpl.geoaxes.GeoAxes.add_geometries`.
+        kde_params : dict
+            The kwargs to pass to `~sklearn.neighbors.KernelDensity`.
+            Note that 'metric' is not allowed to be specified, as haversine
+            is the only valid metric.
+        figsize : tuple
+            The size (width, height) of the plotted figure.
+
+        Returns
+        -------
+        fig : `~matplotlib.pyplot.figure`
+        ax : `~cartopy.mpl.geoaxes.GeoAxesSubplot`
+        """
 
         # The cartopy library used by plot_density currently has many
         # warnings about the shapely library deprecating things...
@@ -343,23 +490,33 @@ class BolideDataFrame(GeoDataFrame):
         filterwarnings("ignore", message="__len__ for multi-part")
         filterwarnings("ignore", message="Iteration over multi-part")
 
-        from sklearn.neighbors import KernelDensity
-        from math import pi
+        # filter to only detections containing both latitude and longitude
+        bdf = self[(~self.latitude.isnull()) & (~self.longitude.isnull())]
 
-        bdf = self[~self.latitude.isnull()]
-
+        # get numpy array in the format that KernelDensity likes
         data = np.vstack([np.radians(bdf.latitude), np.radians(bdf.longitude)]).T
+
+        # set kde_params and validate input
         if 'kernel' not in kde_params:
             kde_params['kernel'] = 'gaussian'
+        if 'metric' in kde_params:
+            del kde_params['metric']
+            warn('Please do not specify metric. Any metric other than haversine (default)\
+                 will lead to invalid results.')
 
         from math import radians
+        from sklearn.neighbors import KernelDensity
+        # create and fit a KDE
         kde = KernelDensity(bandwidth=radians(bandwidth), metric="haversine", **kde_params)
         kde.fit(data)
 
+        # create grid of latitudes and longitudes
+        from math import pi
         X, Y = np.meshgrid(np.linspace(-pi, pi, lat_resolution),
                            np.linspace(-pi/2, pi/2, lon_resolution))
         xy = np.vstack([Y.ravel(), X.ravel()]).T
 
+        # compute density at gridpoints
         density_per_steradian = np.exp(kde.score_samples(xy))
 
         # convert density per steradian to bolides per sqkm
@@ -371,14 +528,15 @@ class BolideDataFrame(GeoDataFrame):
         bolides_per_steradian = num_bolides * density_per_steradian
         bolides_per_sqkm = bolides_per_steradian * steradian_per_sqdeg * sqdeg_per_sqkm
 
+        # prepare for plotting
         Z = bolides_per_sqkm
         Z = Z.reshape(X.shape)
         levels = np.linspace(0, Z.max(), n_levels)
-
         x = np.degrees(X)
         y = np.degrees(Y)
         z = Z
 
+        # get mask given the boundary
         from .fov_utils import get_mask
         mask = get_mask(np.degrees(xy), boundary).reshape(X.shape)
 
@@ -386,7 +544,6 @@ class BolideDataFrame(GeoDataFrame):
         default_cmap = plt.get_cmap('viridis').copy()
         default_cmap.set_under('none')
         defaults = {'alpha': 1, 'antialiased': False, 'cmap': default_cmap}
-        from .utils import reconcile_input
         kwargs = reconcile_input(kwargs, defaults)
 
         # using the given style,
@@ -419,8 +576,37 @@ class BolideDataFrame(GeoDataFrame):
 
         return fig, ax
 
-    def plot_dates(self, freq='1D', logscale=False, style=MPLSTYLE, start=None, end=None, **kwargs):
-        """Plots the number of bolides over time."""
+    def plot_dates(self, freq='1D', logscale=False,
+                   start=None, end=None,
+                   figsize=(10, 3), style=MPLSTYLE, **kwargs):
+        """Plot the number of bolides over time.
+
+        Parameters
+        ----------
+        freq : str
+            The binning frequency. Can be strings like ``'2D'``, ``'1M'``, etc.
+            Refer to https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases
+        start, end: strs
+            Optional arguments to filter by date.
+            Must be ISO-format strings that can be read by `~datetime.datetime.fromisoformat`.
+        logscale : bool
+            Whether or not to use a log-scale for the y-axis
+        **kwargs :
+            Keyword arguments passed through to `~matplotlib.axes.Axes.bar`.
+
+        Other Parameters
+        ----------------
+        style : str
+            The matplotlib style to use. Refer to
+            https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
+        figsize : tuple
+            The size (width, height) of the plotted figure.
+
+        Returns
+        -------
+        fig : `~matplotlib.pyplot.figure`
+        ax : `~matplotlib.axes.Axes`
+        """
         from pandas.plotting import register_matplotlib_converters
         register_matplotlib_converters()
 
@@ -434,7 +620,7 @@ class BolideDataFrame(GeoDataFrame):
         with plt.style.context(style):
 
             # initialize figure and set major, minor ticks and formats
-            fig, ax = plt.subplots(figsize=(10, 3), dpi=300)
+            fig, ax = plt.subplots(figsize=figsize, dpi=300)
             ax.xaxis.set_major_locator(mdates.YearLocator())
             ax.xaxis.set_minor_locator(mdates.MonthLocator())
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
@@ -498,15 +684,27 @@ class BolideDataFrame(GeoDataFrame):
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
 
-    # override GeoPandas' __getitem__ to force the class to remain BolideDataFrame
-    def __getitem__(self, key):
-        result = super().__getitem__(key)
-        force_bdf_class(result)
-        return result
-
     # TODO: match on a column other than _id?
     def augment(self, new_data, time_limit=300, score_limit=5, intersection=False):
-        """Augment BolideDataFrame with data from another source"""
+        """Augment BolideDataFrame with data from another source
+
+        Parameters
+        ----------
+        new_data : `~BolideDataFrame`
+            The source of the new data.
+        time_limit : int
+            Maximum time difference (seconds) for two bolides to possibly be the same
+        score_limit : int
+            Maximum score (time_limit * difference in latlon) for two bolides to
+            possibly be the same.
+        intersection : bool
+            - True: only keep detections that appear in both sets of data.
+            - False: keep all detections that appear in the first set.
+
+        Returns
+        -------
+        bdf : `~BolideDataFrame`
+        """
 
         # make _id column if doesn't exist
         if "_id" not in self.columns:
@@ -553,6 +751,12 @@ class BolideDataFrame(GeoDataFrame):
         # Pandas' warnings about setting attributes
         filterwarnings("ignore", message="Pandas doesn't allow columns to be created via a new attribute name")
         return super().__setattr__(attr, val)
+
+    # override GeoPandas' __getitem__ to force the class to remain BolideDataFrame
+    def __getitem__(self, key):
+        result = super().__getitem__(key)
+        force_bdf_class(result)
+        return result
 
 
 def get_df_from_website():

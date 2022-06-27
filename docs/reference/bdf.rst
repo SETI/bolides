@@ -3,9 +3,11 @@
 ===============
 BolideDataFrame
 ===============
+
 .. currentmodule:: bolides
 
-The `BolideDataFrame` class is an extension of GeoPandas' `~geopandas.GeoDataFrame` object, which extends Pandas' `~pandas.DataFrame`.
+The `BolideDataFrame` class is the main way to work with data in the ``bolides`` package.
+`BolideDataFrame` is an extension of GeoPandas' `~geopandas.GeoDataFrame` object, which extends Pandas' `~pandas.DataFrame`.
 
 Constructor
 ~~~~~~~~~~~
@@ -22,8 +24,17 @@ Filtering
    :toctree: api/
 
     BolideDataFrame.filter_date
-    BolideDataFrame.clip_boundary
+    BolideDataFrame.filter_boundary
     BolideDataFrame.filter_observation
+
+Search
+~~~~~~
+
+.. autosummary::
+   :toctree: api/
+
+    BolideDataFrame.get_closest_by_time
+    BolideDataFrame.get_closest_by_loc
 
 Plotting
 ~~~~~~~~
@@ -34,3 +45,11 @@ Plotting
    BolideDataFrame.plot_detections
    BolideDataFrame.plot_density
    BolideDataFrame.plot_dates
+
+Data Manipulation
+~~~~~~~~~~~~~~~~~
+
+.. autosummary::
+   :toctree: api/
+
+   BolideDataFrame.augment

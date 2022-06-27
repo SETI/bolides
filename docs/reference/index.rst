@@ -13,6 +13,7 @@ API reference
 
    bdf
    fov_utils
+   crs
 
 
 

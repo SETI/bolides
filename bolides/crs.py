@@ -2,6 +2,10 @@ from cartopy.crs import Geostationary, EqualEarth
 from .constants import GOES_E_LON, GOES_W_LON, GLM_STEREO_MIDPOINT, FY4A_LON
 
 class DefaultCRS(EqualEarth):
+    """The default CoordinateReferenceSystem.
+
+    An Equal-Earth projection from the point between GOES-W and GOES-E
+    """
     def __init__(self):
         super().__init__(central_longitude=GLM_STEREO_MIDPOINT)
 
