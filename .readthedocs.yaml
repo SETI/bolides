@@ -1,9 +1,11 @@
 # Required
-version: 2
+version: 0.4
 
 # Set the version of Python
 build:
   os: ubuntu-20.04
+  apt_packages:
+    proj-bin
   tools:
     python: "3.9"
 
