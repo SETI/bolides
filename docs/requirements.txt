@@ -1,9 +1,9 @@
+numpy
 numpydoc
 nbsphinx
 pydata-sphinx-theme
 cartopy==0.18.0
 shapely
-numpy
 pandas
 matplotlib
 geopandas
