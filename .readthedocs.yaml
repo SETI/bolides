@@ -6,6 +6,7 @@ build:
   os: ubuntu-20.04
   apt_packages:
     - proj-bin
+    - libproj-dev
     - libgeos-dev
   tools:
     python: "3.9"

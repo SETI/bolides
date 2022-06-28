@@ -2,7 +2,7 @@ numpy
 numpydoc
 nbsphinx
 pydata-sphinx-theme
-cartopy
+cartopy==0.18.0
 shapely
 pandas
 matplotlib
