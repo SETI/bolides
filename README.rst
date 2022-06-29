@@ -18,7 +18,13 @@ bolides
 - Augment one data set with data from another, automatically matching bolide detections from different sources.
 - Pull corresponding bolide light curves from `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_ and plot them.
 
+**Documentation**
+
+All package documentation is hosted at `bolides.readthedocs.io <https://bolides.readthedocs.io>`_.
+
 **Installation**
+
+Steps 1 and 2 below can be skipped if you do not wish to use any plotting functions. However, you will still need to ``pip install shapely``.
 
 #. First, `PROJ <https://proj.org/install.html>`_ needs to be installed on your system using the installation instructions at the link. `GEOS <https://libgeos.org/usage/install/>`_ also needs to be installed. On Ubuntu both can be installed with ``sudo apt install proj-bin libproj-dev libgeos-dev``.
 #. Next, due to `known Cartopy and Shapely problems <https://github.com/SciTools/cartopy/issues/738>`_, Cartopy and Shapely need to be installed manually. This is done with: ``pip install numpy && pip install cartopy==0.18.0 shapely --no-binary cartopy --no-binary shapely``. Note that an older Cartopy version is recommended to prevent it from requiring PROJ versions not yet in common repositories.
@@ -28,4 +34,4 @@ Note: if you wish to install the repository in an editable mode, you can ``git c
 
 **Tutorial**
 
-For a usage tutorial, go to notebooks/tutorial.ipynb
+For a usage tutorial, go `here <https://bolides.readthedocs.io/en/latest/tutorials>`_.
