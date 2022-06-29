@@ -9,14 +9,12 @@ import pandas as pd
 import pickle
 
 from geopandas import GeoDataFrame
-from cartopy import crs as ccrs
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from lightkurve import LightCurve, LightCurveCollection
 
 from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE, ROOT_PATH
-from .crs import DefaultCRS
 from .utils import make_points, reconcile_input
 
 
@@ -282,7 +280,7 @@ class BolideDataFrame(GeoDataFrame):
             sensors = [sensors]
         if type(sensors) is not list or not all([type(s) is str for s in sensors]):
             raise ValueError("Sensors must be a string or list of strings")
-        sensors = [sensors.lower() for sensor in sensors]
+        sensors = [sensor.lower() for sensor in sensors]
 
         valid_sensors = ['glm16', 'glm17']
 
@@ -308,7 +306,7 @@ class BolideDataFrame(GeoDataFrame):
                 start = None if fov_df.start.isna()[i] else fov_df.start[i]
                 end = None if fov_df.end.isna()[i] else fov_df.end[i]
                 boundary = fov_df.boundary[i]
-                bdfs.append(self.clip_boundary([boundary]).filter_date(start=start, end=end))
+                bdfs.append(self.filter_boundary([boundary]).filter_date(start=start, end=end))
             bdf = pd.concat(bdfs)
             indices += list(bdf.index)
 
@@ -321,7 +319,7 @@ class BolideDataFrame(GeoDataFrame):
         force_bdf_class(filtered)
         return filtered
 
-    def plot_detections(self, crs=DefaultCRS(),
+    def plot_detections(self, crs=None,
                         category=None, coastlines=True, style=MPLSTYLE,
                         boundary=None, boundary_style={}, figsize=(8, 8),
                         **kwargs):
@@ -361,6 +359,10 @@ class BolideDataFrame(GeoDataFrame):
         fig : `~matplotlib.pyplot.figure`
         ax : `~cartopy.mpl.geoaxes.GeoAxesSubplot`
         """
+        from .crs import DefaultCRS
+        if crs is None:
+            crs = DefaultCRS()
+
         # The cartopy library used by plot_detections currently has many
         # warnings about the shapely library deprecating things...
         # This code suppresses those warnings
@@ -432,7 +434,7 @@ class BolideDataFrame(GeoDataFrame):
 
         return fig, ax
 
-    def plot_density(self, crs=DefaultCRS(),
+    def plot_density(self, crs=None,
                      bandwidth=5, coastlines=True, style=MPLSTYLE,
                      boundary=None, boundary_style={},
                      kde_params={}, lat_resolution=100, lon_resolution=50,
@@ -483,7 +485,11 @@ class BolideDataFrame(GeoDataFrame):
         fig : `~matplotlib.pyplot.figure`
         ax : `~cartopy.mpl.geoaxes.GeoAxesSubplot`
         """
+        from .crs import DefaultCRS
+        if crs is None:
+            crs = DefaultCRS()
 
+        from cartopy import crs as ccrs
         # The cartopy library used by plot_density currently has many
         # warnings about the shapely library deprecating things...
         # This code suppresses those warnings
