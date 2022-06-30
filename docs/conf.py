@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'bolides'
-copyright = '2022, Clemens Rumpf & Geert Barentsen'
-author = 'Clemens Rumpf & Geert Barentsen'
+copyright = '2022, Anthony Ozerov & Bolides Contributors'
+author = 'Anthony Ozerov & Bolides Contributors'
 
 # The full version, including alpha/beta/rc tags
 release = '0.4'
@@ -49,6 +49,8 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 
 # -- Options for HTML output -------------------------------------------------
+
+html_favicon = "favicon.svg"
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.

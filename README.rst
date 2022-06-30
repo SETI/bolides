@@ -3,6 +3,15 @@ bolides
 
 **A package to analyze bolide data in Python.**
 
+|pypi-badge| |rtd-badge|
+
+.. |rtd-badge| image:: https://readthedocs.org/projects/bolides/badge/?version=latest
+               :target: https://bolides.readthedocs.io/en/latest
+               :alt: Documentation Status
+.. |pypi-badge| image:: https://img.shields.io/pypi/v/bolides.svg
+                :target: https://pypi.org/project/bolides/
+                :alt: PyPI link
+
 ``bolides`` is primarily designed to work with bolide detections from the Geostationary Lightning Mapper instruments aboard GOES-16 and GOES-17 that are published at `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_. But ``bolides`` can also read bolide data from ZODB database files produced by the GLM bolide detection pipeline, from `US Government sensors <https://cneos.jpl.nasa.gov/fireballs/>`_, and from your own .csv files containing bolide data.
 
 **Functionality**
@@ -35,3 +44,7 @@ Note: if you wish to install the repository in an editable mode, you can ``git c
 **Tutorial**
 
 For a usage tutorial, go `here <https://bolides.readthedocs.io/en/latest/tutorials>`_.
+
+**Historical Note**
+
+The original version of ``bolides`` was developed by Clemens Rumpf and Geert Barentsen. It has been rewritten since then, but all of the original code and functionality is still present.
