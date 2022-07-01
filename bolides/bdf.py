@@ -39,8 +39,10 @@ class BolideDataFrame(GeoDataFrame):
         - For ``'pickle'``, specifies the filename of the pickled object.
         - For ``'csv'``, specifies the filename of the csv.
         - For ``'pipeline'``, specifies the filename(s) of the database file(s)
+    annotate : bool
+        Whether or not to add additional metadata.
     """
-    def __init__(self, source='website', files=None):
+    def __init__(self, source='website', files=None, annotate=True):
 
         # Initialize differently based on source.
         # Each if statement creates a GeoDataFrame with the EPSG:4326 CRS
@@ -106,7 +108,8 @@ class BolideDataFrame(GeoDataFrame):
         super().__init__(init_gdf)
 
         # add additional metadata to the bolides
-        self.annotate()
+        if annotate:
+            self.annotate()
 
         from configparser import ConfigParser
         config = ConfigParser()

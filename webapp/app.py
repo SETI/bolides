@@ -1,4 +1,5 @@
 import io
+import flask
 from dash import Dash, html, dcc
 from dash import dash_table
 import plotly.express as px
@@ -11,7 +12,8 @@ import numpy as np
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
-app = Dash(__name__)
+server = flask.Flask(__name__)
+app = Dash(__name__, server=server)
 app.title = 'bolides webapp'
 
 def get_empty_map():
@@ -22,9 +24,10 @@ def get_empty_map():
 def get_map(df, boundary, color_column):
     import numbers
     numeric_columns=['datetime']
+    too_long = ['otherInformation', 'reason']
     if len(df)>0:
         for col in df.columns:
-            if isinstance(df[col][0], numbers.Number):
+            if isinstance(df[col][0], numbers.Number) and (col not in too_long):
                 numeric_columns.append(col)
 
     fig = px.scatter_mapbox(df, lat="latitude", lon="longitude",
@@ -80,14 +83,14 @@ colors = {
 
 # assume you have a "long-form" data frame
 # see https://plotly.com/python/px-arguments/ for more options
-def get_df(source):
+def get_df(source, filter_query=None):
     import os
     filename = source+'_'+datetime.datetime.today().strftime('%Y%m%d')+'.csv'
     if source not in ['usg', 'website']:
         pass
     elif os.path.isfile(filename):
         print(filename,'exists')
-        df = BolideDataFrame(source='csv', files=filename)
+        df = BolideDataFrame(source='csv', files=filename, annotate=False)
     else:
         df = BolideDataFrame(source)
         for col in df.columns:
@@ -102,6 +105,19 @@ def get_df(source):
     for col in df.columns:
         if type(df[col][0]) is np.float64:
             df[col] = np.around(df[col],3)
+
+    if filter_query is not None:
+        filtering_expressions = filter_query.split(' && ')
+        for filter_part in filtering_expressions:
+            col_name, operator, filter_value = split_filter_part(filter_part)
+
+            if operator in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
+                df = df.loc[getattr(dff[col_name], operator)(filter_value)]
+            elif operator == 'contains':
+                df = df.loc[dff[col_name].str.contains(filter_value)]
+            elif operator == 'datestartswith':
+                df = df.loc[dff[col_name].str.startswith(filter_value)]
+
     return df
 
 df = get_df('website')
@@ -204,10 +220,11 @@ Output('scatter', 'figure'),
 Input('scatter-x', 'value'),
 Input('scatter-y', 'value'),
 Input('color', 'value'),
-Input('main-table', 'derived_virtual_data')
+Input('main-table', 'filter_query'),
+Input('source-select', 'value')
 )
-def update_scatter(x, y, color_column, table_data):
-    df = pd.DataFrame.from_dict(table_data)
+def update_scatter(x, y, color_column, filter_query, source):
+    df = get_df(source, filter_query)
     fig = px.scatter(df, x=x, y=y, color=color_column)
     fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
     return fig
@@ -216,11 +233,12 @@ def update_scatter(x, y, color_column, table_data):
 Output('hist', 'figure'),
 Input('hist-var', 'value'),
 Input('hist-bins', 'value'),
-Input('main-table', 'derived_virtual_data')
+Input('main-table', 'filter_query'),
+Input('source-select', 'value')
 )
-def update_hist(var, bins, table_data):
+def update_hist(var, bins, filter_query, source):
     print('updating histogram')
-    df = pd.DataFrame.from_dict(table_data)
+    df = get_df(source, filter_query)
     fig = px.histogram(df, x=var, nbins=bins)
     fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
     return fig
@@ -228,9 +246,10 @@ def update_hist(var, bins, table_data):
 @app.callback(
 Output("download", "data"),
 Input("save-button", "n_clicks"),
-State("main-table", "derived_virtual_data"))
-def download_as_csv(n_clicks, table_data):
-    df = pd.DataFrame.from_dict(table_data)
+State('main-table', 'filter_query'),
+State('source-select', 'value'))
+def download_as_csv(n_clicks, filter_query, source):
+    df = get_df(source, filter_query)
     if not n_clicks:
       raise PreventUpdate
     download_buffer = io.StringIO()
@@ -244,15 +263,48 @@ def download_as_csv(n_clicks, table_data):
         filename = df.source[0]+'_'+datestr+'.csv'
     return dict(content=download_buffer.getvalue(), filename=filename)
 
+operators = [['ge ', '>='],
+             ['le ', '<='],
+             ['lt ', '<'],
+             ['gt ', '>'],
+             ['ne ', '!='],
+             ['eq ', '='],
+             ['contains '],
+             ['datestartswith ']]
+
+
+def split_filter_part(filter_part):
+    for operator_type in operators:
+        for operator in operator_type:
+            if operator in filter_part:
+                name_part, value_part = filter_part.split(operator, 1)
+                name = name_part[name_part.find('{') + 1: name_part.rfind('}')]
+
+                value_part = value_part.strip()
+                v0 = value_part[0]
+                if (v0 == value_part[-1] and v0 in ("'", '"', '`')):
+                    value = value_part[1: -1].replace('\\' + v0, v0)
+                else:
+                    try:
+                        value = float(value_part)
+                    except ValueError:
+                        value = value_part
+
+                # word operators need spaces after them in the filter string,
+                # but we don't want these later
+                return name, operator_type[0].strip(), value
+
+    return [None] * 3
+
+
 @app.callback(
 Output("main-map", "figure"),
-Input("main-table", "derived_virtual_data"),
+Input("main-table", "filter_query"),
+Input("source-select", "value"),
 Input("boundary-checklist", "value"),
 Input("color", "value"))
-def update_map(table_data, boundary, color_column):
-    df = pd.DataFrame.from_dict(table_data)
-
-    numeric_columns = ['datetime']
+def update_map(filter_query, source, boundary, color_column):
+    df = get_df(source, filter_query)
 
     fig = get_map(df, boundary, color_column)
     return fig
@@ -279,12 +331,13 @@ def color_from_map(selectedData):
 @app.callback(
 Output('lightcurve', 'figure'),
 Input('main-map', 'clickData'),
-State('main-table', 'derived_virtual_data')
+Input("main-table", "filter_query"),
+Input("source-select", "value")
 )
-def update_lightcurve(clickData, table_data):
+def update_lightcurve(clickData, filter_query, source):
     import plotly.graph_objects as go
     print('updating lightcurve')
-    df = pd.DataFrame.from_dict(table_data).iloc[clickData['points'][0]['pointIndex']]
+    df = get_df(source, filter_query).iloc[clickData['points'][0]['pointIndex']]
     df = pd.DataFrame(df).T
     print(type(df))
     print(df)
