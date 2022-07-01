@@ -79,7 +79,10 @@ class BolideDataFrame(GeoDataFrame):
                 init_gdf = pickle.load(pkl)
 
         elif source == 'csv':
-            init_gdf = pd.read_csv(files[0], index_col=0, parse_dates=['datetime'], keep_default_na=False)
+            init_gdf = pd.read_csv(files[0], index_col=0,
+                                   parse_dates=['datetime'],
+                                   keep_default_na=False,
+                                   na_values='')
             lats = init_gdf['latitude']
             lons = init_gdf['longitude']
             points = make_points(lons, lats)

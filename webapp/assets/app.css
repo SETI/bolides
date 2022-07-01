@@ -1,0 +1,144 @@
+
+body{
+  margin:0 auto;
+  #max-width:800px;
+  #min-width:30vw;
+  line-height:1.8;
+  font-size:18px;
+  color:#444;
+  padding:0 10px;
+  background-color:#FEFEFE;
+  min-height:100vh;
+  display:flex; 
+  flex-direction:column;
+  font-family:'Computer Modern Serif';
+}
+a{
+  margin-right:auto;
+  margin-bottom:0;
+  margin-top:0;
+  padding:0px;
+  text-decoration: none;
+}
+
+hr{
+  width:100%;
+}
+
+h1{
+  margin-bottom:0;
+}
+
+p{
+  margin-bottom:0;
+  margin-top:0;
+}
+
+.footnote{
+  font-size:14px;
+}
+
+/*for footnote highlighting*/
+p:target {
+    background-color: #DFF8FF;
+}
+
+.footer{
+  margin-top:auto;
+}
+
+/*for collapsible lists*/
+.hidden{
+  display:none;
+}
+.hidden:target{
+  display:block;
+}
+
+ul{
+  margin-top:0px;
+}
+
+img{
+  max-width:100%;
+}
+
+[class *="codeblock"]{
+  font-family: monospace;
+  font-size:14px;
+  line-height:1.1;
+  overflow:auto;
+  white-space: nowrap;
+  padding: 5px;
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
+.codeblock{
+  background-color:#EEEEEE;
+}
+.codeblock-result{
+  background-color:#FEFEFE;
+  border:2px;
+  border-color:#EEEEEE;
+  border-style: solid;
+  color:#000000;
+}
+.code{
+  font-family: monospace;
+  background-color:#EEEEEE;
+  font-size:14px;
+}
+.nospace{
+  line-height:0;
+  font-size:16px;
+}
+
+.wider{
+  max-width:5000px;
+  width: 96vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -48vw;
+  margin-right: -48vw;
+}
+h1,h2,h3{
+  line-height:1.2;
+}
+
+object{
+	padding:0px;
+	margin:0px;
+	width:100%;
+
+}
+object.header{
+	height:44px;
+	
+}
+object.footer{
+	height:60px;
+}
+@font-face {
+    font-family: "Garamond";
+    src: url(/GaramondNo8-Regular.ttf) format("truetype");
+  }
+  p.garamond { 
+    font-family: "Garamond", Verdana, Tahoma;
+  }
+.math{
+  font-family:"Garamond",Times;
+  font-size:20px;
+}
+
+
+a {
+ color:#07a
+}
+a:visited {
+ color:#941352
+}
+
+html{
+  overflow-y: scroll;
+}
