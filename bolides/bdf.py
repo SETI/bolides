@@ -17,6 +17,10 @@ from lightkurve import LightCurve, LightCurveCollection
 from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE, ROOT_PATH
 from .utils import make_points, reconcile_input
 
+_FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
+               'confidenceRating', 'confidence', 'lightcurveStructure',
+               'energy', 'energy_g16', 'energy_g17', 'brightness_g16', 'brightness_g17',
+               'brightness_cat_g16', 'brightness_cat_g17', 'impact-e', 'alt', 'vel']
 
 class BolideDataFrame(GeoDataFrame):
     """
@@ -94,15 +98,11 @@ class BolideDataFrame(GeoDataFrame):
             init_gdf = get_df_from_pipeline(files)
             init_gdf['source'] = 'pipeline'
 
-        # rearrange first columns
-        cols = list(init_gdf.columns.values)
-        first_cols = ['datetime', 'longitude', 'latitude']
-        first_cols.reverse()
-        for col in first_cols:
-            col_idx = cols.index(col)
-            del cols[col_idx]
-            cols.insert(0, col)
-        init_gdf = init_gdf[cols]
+        # rearrange columns, respecting original order if csv or pickle
+        if source not in ['csv', 'pickle']:
+            first_cols = [col for col in _FIRST_COLS if col in init_gdf.columns]
+            other_cols = [col for col in init_gdf.columns if col not in first_cols]
+            init_gdf = init_gdf[first_cols + other_cols]
 
         # initialize the super-class (GeoDataFrame) using the created init_gdf
         super().__init__(init_gdf)
@@ -781,8 +781,8 @@ def get_df_from_website():
     df["datetime"] = df["datetime"].astype("datetime64")
 
     # add bolide energy data
-    energies_g16 = []
-    energies_g17 = []
+    energy_g16 = []
+    energy_g17 = []
     for ats in df.attachments:
         e_g16 = 0
         e_g17 = 0
@@ -797,10 +797,31 @@ def get_df_from_website():
             e_g16 = np.nan
         if e_g17 == 0:
             e_g17 = np.nan
-        energies_g16.append(e_g16)
-        energies_g17.append(e_g17)
-    df['energies_g16'] = energies_g16
-    df['energies_g17'] = energies_g17
+        energy_g16.append(e_g16)
+        energy_g17.append(e_g17)
+    df['energy_g16'] = energy_g16
+    df['energy_g17'] = energy_g17
+
+    # add bolide brightness data
+    brightness_cat_g16 = []
+    brightness_g16 = []
+    brightness_cat_g17 = []
+    brightness_g17 = []
+    val_cols = {'GLM-16': brightness_g16, 'GLM-17': brightness_g17}
+    cat_cols = {'GLM-16': brightness_cat_g16, 'GLM-17': brightness_cat_g17}
+    for brightness in df.brightness:
+        for sat in ['GLM-16', 'GLM-17']:
+            if sat in brightness:
+                cat_cols[sat].append(brightness[sat]['category'])
+                val_cols[sat].append(brightness[sat]['value'])
+            else:
+                cat_cols[sat].append("")
+                val_cols[sat].append(np.nan)
+    df['brightness_cat_g16'] = brightness_cat_g16
+    df['brightness_g16'] = brightness_g16
+    df['brightness_cat_g17'] = brightness_cat_g17
+    df['brightness_g17'] = brightness_g17
+    del df['brightness']
 
     # create a list to be used as a geometry column
     lats = df['latitude']
@@ -830,6 +851,12 @@ def get_df_from_usg():
     del df['date']
     df['energy'] = df['energy'].astype(float)
     df['vel'] = df['vel'].astype(float)
+
+    first_cols = ['datetime', 'longitude', 'latitude', 'source', 'energy',
+                  'impact-e', 'alt', 'vel', 'source']
+    first_cols = [col for col in first_cols if col in df.columns]
+    other_cols = [col for col in df.columns if col not in first_cols]
+    df = df[first_cols + other_cols]
 
     # create a list to be used as a geometry column
     lats = df['latitude']

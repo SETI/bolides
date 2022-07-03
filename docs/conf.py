@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'bolides'
-copyright = '2022, Anthony Ozerov & Bolides Contributors'
-author = 'Anthony Ozerov & Bolides Contributors'
+copyright = '2022, Anthony Ozerov and the NASA ATAP team'
+author = 'Anthony Ozerov and the NASA ATAP team'
 
 # The full version, including alpha/beta/rc tags
 release = '0.4'
