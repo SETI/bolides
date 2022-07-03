@@ -48,3 +48,8 @@ For a usage tutorial, go `here <https://bolides.readthedocs.io/en/latest/tutoria
 **Historical Note**
 
 The original version of ``bolides`` was developed by Clemens Rumpf and Geert Barentsen. It has been rewritten since then, but all of the original code and functionality is still present.
+
+**Acknowledgments**
+
+Work carried out for this project is supported by NASA’s Planetary Defense Coordination Office (PDCO).
+Anthony Ozerov is supported through NASA Cooperative Agreement 80NSSC19M0089.

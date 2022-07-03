@@ -19,18 +19,40 @@ app.title = 'bolide visualizer'
 
 source_dict = {'USG data at https://cneos.jpl.nasa.gov/fireballs/':'usg',
                'GLM data at https://neo-bolide.ndc.nasa.gov/':'website'}
+projections = ['eckert4','GOES-E','GOES-W','FY4A',
+            'airy', 'aitoff', 'albers', 'albers usa', 'august',
+            'azimuthal equal area', 'azimuthal equidistant', 'baker',
+            'bertin1953', 'boggs', 'bonne', 'bottomley', 'bromley',
+            'collignon', 'conic conformal', 'conic equal area', 'conic equidistant',
+            'craig', 'craster', 'cylindrical equal area',
+            'cylindrical stereographic', 'eckert1', 'eckert2',
+            'eckert3', 'eckert4', 'eckert5', 'eckert6', 'eisenlohr',
+            'equirectangular', 'fahey', 'foucaut', 'foucaut sinusoidal',
+            'ginzburg4', 'ginzburg5', 'ginzburg6',
+            'ginzburg8', 'ginzburg9', 'gnomonic', 'gringorten',
+            'gringorten quincuncial', 'guyou', 'hammer', 'hill',
+            'homolosine', 'hufnagel', 'hyperelliptical',
+            'kavrayskiy7', 'lagrange', 'larrivee', 'laskowski',
+            'loximuthal', 'mercator', 'miller', 'mollweide', 'mt flat polar parabolic',
+            'mt flat polar quartic', 'mt flat polar sinusoidal',
+            'natural earth', 'natural earth1', 'natural earth2',
+            'nell hammer', 'nicolosi', 'orthographic',
+            'patterson', 'peirce quincuncial', 'polyconic',
+            'rectangular polyconic', 'robinson', 'satellite', 'sinu mollweide',
+            'sinusoidal', 'stereographic', 'times',
+            'transverse mercator', 'van der grinten', 'van der grinten2',
+            'van der grinten3', 'van der grinten4',
+            'wagner4', 'wagner6', 'wiechel', 'winkel tripel',
+            'winkel3']
 
-def get_empty_map():
-    fig = px.scatter_mapbox(lat=[], lon=[], mapbox_style="open-street-map", zoom=1)
-    fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, height=900)
-    return fig
-
-def get_map(df, boundary, color_column, log_color):
+def get_map(df, boundary, color_column, log_color, projection):
     import numbers
     if len(df)==0:
         df = pd.DataFrame({'datetime':[],'longitude':[],'latitude':[]})
     hover_columns=['datetime']
-    too_long = ['otherInformation', 'reason', 'description', 'otherDetectingSources']
+    too_long = ['otherInformation', 'reason', 'description', 'otherDetectingSources','status',
+                'lastModifiedBy','enteredBy','submittedBy','publishedBy','platform','rejectedBy',
+                'rejectedDate','date_retrieved','__v']
     if len(df)>0:
         for col in df.columns:
             if isinstance(df[col][df.index[0]], numbers.Number) and (col not in too_long):
@@ -47,17 +69,35 @@ def get_map(df, boundary, color_column, log_color):
                     formatted = ['%g' % num for num in nums]
                     df[col]=df[col].astype(str)
                     df[col][num_idx] = formatted
+
+    proj_name = projection
+    if projection in ['GOES-E', 'GOES-W', 'FY4A']:
+        proj_name = 'satellite'
     if 'log color scale' in log_color and isinstance(df[color_column][df.index[0]], numbers.Number):
-        fig = px.scatter_mapbox(df, lat="latitude", lon="longitude",
-                                mapbox_style="open-street-map",
-                                zoom=1, hover_data=hover_columns,
-                                color=np.log(df[color_column]))
+        fig = px.scatter_geo(df, lat="latitude", lon="longitude",
+                             hover_data=hover_columns,
+                             color=np.log(df[color_column]),
+                             projection=proj_name)
         fig.update_layout(coloraxis_colorbar={'title': 'log('+color_column+')'})
     else:
-        fig = px.scatter_mapbox(df, lat="latitude", lon="longitude",
-                                mapbox_style="open-street-map",
-                                zoom=1, hover_data=hover_columns,
-                                color=color_column)
+        fig = px.scatter_geo(df, lat="latitude", lon="longitude",
+                             hover_data=hover_columns,
+                             color=color_column,
+                             projection=proj_name)
+    from bolides import constants
+    if len(df)>0 and df['source'][0] == 'website':
+        fig.update_geos(projection_rotation={'lon':constants.GLM_STEREO_MIDPOINT})
+    if projection in ['satellite', 'GOES-E', 'GOES-W', 'FY4A']:
+        distance = 42164/6378 # geostationary orbit distance
+        rotation = 0
+        if projection == 'GOES-E':
+            rotation = constants.GOES_E_LON
+        elif projection == 'GOES-W':
+            rotation = constants.GOES_W_LON
+        elif projection == 'FY4A':
+            rotation = constants.FY4A_LON
+        fig.update_geos(projection={'type':'satellite','distance':distance},
+                        projection_rotation={'lon':rotation})
 
 
     fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, height=900)
@@ -79,7 +119,8 @@ def get_map(df, boundary, color_column, log_color):
         if boundary[num] in ['goes','goes-w','goes-w-i','goes-w-ni']:
             lons = lons - (lons>50) * 360
 
-        fig.add_trace(go.Scattermapbox(mode="lines", lon = lons, lat=lats, name=boundary[num], opacity=0.6))
+        fig.add_trace(go.Scattergeo(mode="lines", lon = lons, lat=lats,
+                                    name=boundary[num], opacity=0.6))
 
     return fig
 
@@ -147,6 +188,7 @@ def get_df_from_filters(source, filter_query=None, start_date=None, end_date=Non
             if operator in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
                 df = df.loc[getattr(df[col_name], operator)(filter_value)]
             elif operator == 'contains':
+                df = df[~df[col_name].isna()]
                 df = df.loc[df[col_name].str.contains(filter_value)]
             elif operator == 'datestartswith':
                 df = df.loc[df[col_name].str.startswith(filter_value)]
@@ -196,12 +238,12 @@ To get started, select a data source below. If you have GLM data selected, you m
 
 
     dcc.Dropdown(id='color', placeholder='Select a variable to color by',
-                 style={'width':'20vw', 'display': 'inline-block'}),
+                 style={'width':'50vw', 'display': 'inline-block'}),
     dcc.Checklist(['log color scale'], [], inline=True, id='log-color',
                   style={'display': 'inline-block'}),
     html.Div(children=['Optional date filter: ',
         dcc.DatePickerRange(
-            id='date-range', display_format='Y-M-D', style={'display':'inline-block'},
+            id='date-range', display_format='Y-MM-DD', style={'display':'inline-block'},
             clearable=True
         )]),
     html.Div(children=['Field-of-view options:  ',
@@ -209,9 +251,11 @@ To get started, select a data source below. If you have GLM data selected, you m
                       [], inline=True, id='boundary-checklist',
             style={'display':'inline-block'})]),
     dcc.Checklist(['Filter by FOV','Intersection'], [], id='filter-fov'),
+    html.Div(children=["Map projection: ",
+                       dcc.Dropdown(projections, value='eckert4', id='projection',
+                                    style={'width':'50vw','display':'inline-block'})]),
     dcc.Graph(
         id='main-map',
-        figure=get_empty_map(),
         config= {'displaylogo': False}
     ),
     html.Div(children=[
@@ -244,8 +288,9 @@ To get started, select a data source below. If you have GLM data selected, you m
     ],style={'width':'90vw', 'margin':'0 auto'}),
 
     dcc.Download(id="download"),
-    html.Button("Export filtered data as csv",
-                id="save-button"),
+    html.Div(children=['You may type filter queries (including using operators like <, =, and >) in the table below. ',
+                       html.Button("Export filtered data as csv",
+                       id="save-button",style={'display':'inline-block'})]),
     dash_table.DataTable(data=None,
         id='main-table',
         columns=[],
@@ -254,7 +299,7 @@ To get started, select a data source below. If you have GLM data selected, you m
         sort_mode="single",
         column_selectable=False,
         row_selectable=False,#"single",
-        row_deletable=True,
+        row_deletable=False,
         selected_columns=[],
         selected_rows=[],
         page_action="custom",
@@ -300,7 +345,7 @@ def update_data(source, page_current, page_size, filter_query, start_date, end_d
     import numbers
     if len(df)>0:
         for col in df.columns:
-            if isinstance(df[col][df.index[0]], numbers.Number):
+            if all(isinstance(x, numbers.Number) for x in df[col]):
                 numeric_columns.append(col)
                 color_columns.append(col)
             elif len(df[col].unique()) < 20 and len(df[col].unique())>1:
@@ -430,14 +475,15 @@ Input("source-select", "value"),
 Input("data-rows", "data"),
 Input("color", "value"),
 Input('log-color', 'value'),
-Input('boundary-checklist', 'value'))
-def update_map(source, rows, color_column, log_color, boundary_checklist):
+Input('boundary-checklist', 'value'),
+Input('projection', 'value'))
+def update_map(source, rows, color_column, log_color, boundary_checklist, projection):
     print('updating map')
     df = get_df_from_idx(source, rows)
     if color_column not in df.columns:
         color_column = None
 
-    fig = get_map(df, boundary_checklist, color_column, log_color)
+    fig = get_map(df, boundary_checklist, color_column, log_color, projection)
     return fig
 
 @app.callback(
