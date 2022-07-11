@@ -73,4 +73,6 @@ default_role = 'py:obj'
 intersphinx_mapping = {'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
                        'geopandas': ('https://geopandas.org/en/stable/', None),
                        'astropy': ('https://docs.astropy.org/en/latest/', None),
-                       'shapely': ('https://shapely.readthedocs.io/en/stable/', None)}
+                       'shapely': ('https://shapely.readthedocs.io/en/stable/', None),
+                       'cartopy': ('https://scitools.org.uk/cartopy/docs/latest/', None),
+                       'plotly': ('https://plotly.com/python-api-reference/', None)}

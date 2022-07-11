@@ -43,6 +43,7 @@ Plotting
    :toctree: api/
 
    BolideDataFrame.plot_detections
+   BolideDataFrame.plot_interactive
    BolideDataFrame.plot_density
    BolideDataFrame.plot_dates
 

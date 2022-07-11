@@ -22,6 +22,7 @@ _FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
                'energy', 'energy_g16', 'energy_g17', 'brightness_g16', 'brightness_g17',
                'brightness_cat_g16', 'brightness_cat_g17', 'impact-e', 'alt', 'vel']
 
+
 class BolideDataFrame(GeoDataFrame):
     """
     Subclass of GeoPandas `~geopandas.GeoDataFrame` with additional bolide-specific methods.
@@ -440,6 +441,153 @@ class BolideDataFrame(GeoDataFrame):
 
         return fig, ax
 
+    def plot_interactive(self, projection="eckert4",
+                         boundary=None, color=None, logscale=False,
+                         **kwargs):
+        """Plot an interactive map of bolide detections.
+
+        Parameters
+        ----------
+        projection : str
+            The map projection to use. Here is the complete list:
+            ['eckert4', 'goes-e', 'goes-w', 'fy4a',
+            'airy', 'aitoff', 'albers', 'albers usa', 'august',
+            'azimuthal equal area', 'azimuthal equidistant', 'baker',
+            'bertin1953', 'boggs', 'bonne', 'bottomley', 'bromley',
+            'collignon', 'conic conformal', 'conic equal area', 'conic equidistant',
+            'craig', 'craster', 'cylindrical equal area',
+            'cylindrical stereographic', 'eckert1', 'eckert2',
+            'eckert3', 'eckert4', 'eckert5', 'eckert6', 'eisenlohr',
+            'equirectangular', 'fahey', 'foucaut', 'foucaut sinusoidal',
+            'ginzburg4', 'ginzburg5', 'ginzburg6',
+            'ginzburg8', 'ginzburg9', 'gnomonic', 'gringorten',
+            'gringorten quincuncial', 'guyou', 'hammer', 'hill',
+            'homolosine', 'hufnagel', 'hyperelliptical',
+            'kavrayskiy7', 'lagrange', 'larrivee', 'laskowski',
+            'loximuthal', 'mercator', 'miller', 'mollweide', 'mt flat polar parabolic',
+            'mt flat polar quartic', 'mt flat polar sinusoidal',
+            'natural earth', 'natural earth1', 'natural earth2',
+            'nell hammer', 'nicolosi', 'orthographic',
+            'patterson', 'peirce quincuncial', 'polyconic',
+            'rectangular polyconic', 'robinson', 'satellite', 'sinu mollweide',
+            'sinusoidal', 'stereographic', 'times',
+            'transverse mercator', 'van der grinten', 'van der grinten2',
+            'van der grinten3', 'van der grinten4',
+            'wagner4', 'wagner6', 'wiechel', 'winkel tripel',
+            'winkel3']
+        boundary : str or list of str
+            The boundaries to plot.
+            Refer to `~bolides.fov_utils.get_boundary`.
+        color : str
+            The name of a column in the `~BolideDataFrame`
+        logscale : bool
+            Whether or not to use a logarithmic scale for the colors.
+        **kwargs :
+            Keyword arguments passed through to `~plotly.express.scatter_geo`.
+
+        Other Parameters
+        ----------------
+        coastlines: bool
+            Whether or not to draw coastlines.
+        style : str
+            The matplotlib style to use. Refer to
+            https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
+        boundary_style : dict
+            The kwargs to use when plotting the boundary.
+            Refer to `~cartopy.mpl.geoaxes.GeoAxes.add_geometries`.
+        figsize : tuple
+            The size (width, height) of the plotted figure.
+
+        Returns
+        -------
+        fig : `~matplotlib.pyplot.figure`
+        ax : `~cartopy.mpl.geoaxes.GeoAxesSubplot`
+        """
+        import plotly.express as px
+        import plotly.graph_objects as go
+        df = self.copy()
+        hover_columns = ['datetime']
+        if len(df) == 0:
+            df = pd.DataFrame({'datetime': [], 'longitude': [], 'latitude': []})
+        hover_columns = ['datetime']
+        too_long = ['otherInformation', 'reason', 'description', 'otherDetectingSources', 'status',
+                    'lastModifiedBy', 'enteredBy', 'submittedBy', 'publishedBy', 'platform', 'rejectedBy',
+                    'rejectedDate', 'date_retrieved', '__v']
+
+        import numbers
+        if len(df) > 0:
+            for col in df.columns:
+                if type(df[col].iloc[0]) in [list, dict]:
+                    continue
+                if all([isinstance(x, numbers.Number) for x in df[col]]) and (col not in too_long):
+                    hover_columns.append(col)
+                elif len(df[col].unique()) < 20 and (col not in too_long):
+                    hover_columns.append(col)
+            for col in hover_columns:
+                if col not in ['latitude', 'longitude', color]:
+                    if all([isinstance(i, numbers.Number) for i in df[col]]):
+                        df[col] = ['%g' % num for num in df[col]]
+                    else:
+                        df[col] = df[col].fillna('')
+
+        defaults = {'hover_data': hover_columns}
+        kwargs = reconcile_input(kwargs, defaults)
+
+        projection = projection.lower()
+        proj_name = projection
+        if projection in ['goes-e', 'goes-w', 'fy4a']:
+            proj_name = 'satellite'
+        if logscale and all([isinstance(x, numbers.Number) for x in df[color]]):
+            fig = px.scatter_geo(df, lat="latitude", lon="longitude",
+                                 color=np.log(df[color]),
+                                 projection=proj_name, **kwargs)
+            fig.update_layout(coloraxis_colorbar={'title': 'log('+color+')'})
+        else:
+            fig = px.scatter_geo(df, lat="latitude", lon="longitude",
+                                 color=color,
+                                 projection=proj_name,
+                                 **kwargs)
+        from .constants import GLM_STEREO_MIDPOINT, GOES_E_LON, GOES_W_LON, FY4A_LON
+        if len(df) > 0 and df['source'].iloc[0] == 'website':
+            fig.update_geos(projection_rotation={'lon': GLM_STEREO_MIDPOINT})
+        if projection in ['satellite', 'goes-e', 'goes-w', 'fy4a']:
+            distance = 42164/6378  # geostationary orbit distance
+            rotation = 0
+            if projection == 'goes-e':
+                rotation = GOES_E_LON
+            elif projection == 'goes-w':
+                rotation = GOES_W_LON
+            elif projection == 'fy4a':
+                rotation = FY4A_LON
+            fig.update_geos(projection={'type': 'satellite', 'distance': distance},
+                            projection_rotation={'lon': rotation})
+
+        fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=900)
+        fig.update_traces(marker=dict(size=8))
+        from bolides.fov_utils import get_boundary
+        import pyproj
+        from geopandas import GeoDataFrame
+        if boundary is None:
+            boundary = []
+        polygons = get_boundary(boundary)
+        if type(polygons) is not list:
+            polygons = [polygons]
+        aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=90, lon_0=0).srs
+        gdf = GeoDataFrame(geometry=polygons, crs=aeqd)
+        gdf = gdf.to_crs('epsg:4326')
+        polygons = gdf.geometry
+        for num, polygon in enumerate(polygons):
+            lons, lats = polygon.exterior.coords.xy
+            lons = np.array(lons)
+            lats = np.array(lats)
+            if boundary[num] in ['goes', 'goes-w', 'goes-w-i', 'goes-w-ni']:
+                lons = lons - (lons > 50) * 360
+
+            fig.add_trace(go.Scattergeo(mode="lines", lon=lons, lat=lats,
+                                        name=boundary[num], opacity=0.6))
+
+        return fig
+
     def plot_density(self, crs=None,
                      bandwidth=5, coastlines=True, style=MPLSTYLE,
                      boundary=None, boundary_style={},
@@ -849,8 +997,9 @@ def get_df_from_usg():
     del df['lat'], df['lon'], df['lat-dir'], df['lon-dir']
     df['datetime'] = [datetime.fromisoformat(date) for date in df['date']]
     del df['date']
-    df['energy'] = df['energy'].astype(float)
-    df['vel'] = df['vel'].astype(float)
+    numeric_cols = ['energy', 'impact-e', 'alt', 'vel']
+    for col in numeric_cols:
+        df[col] = df[col].astype(float)
 
     first_cols = ['datetime', 'longitude', 'latitude', 'source', 'energy',
                   'impact-e', 'alt', 'vel', 'source']
