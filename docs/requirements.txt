@@ -10,3 +10,4 @@ geopandas
 lightkurve
 scikit-learn
 astropy
+plotly
