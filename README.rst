@@ -26,7 +26,7 @@ bolides
 - Plot GLM fields-of-view in the GOES-West and GOES-East positions, and filter bolide detections by the FOV.
 - Augment one data set with data from another, automatically matching bolide detections from different sources.
 - Pull corresponding bolide light curves from `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_ and plot them.
-- Run an `interactive webapp <https://bolides.aozerov.com>'_.
+- Run an `interactive webapp <https://bolides.aozerov.com>`_.
 
 **Documentation**
 
