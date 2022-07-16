@@ -46,8 +46,10 @@ class BolideDataFrame(GeoDataFrame):
         - For ``'pipeline'``, specifies the filename(s) of the database file(s)
     annotate : bool
         Whether or not to add additional metadata.
+    rearrange : bool
+        Whether or not to rearrange the columns, if coming from a CSV or Pickle.
     """
-    def __init__(self, source='website', files=None, annotate=True):
+    def __init__(self, source='website', files=None, annotate=True, rearrange=False):
 
         # Initialize differently based on source.
         # Each if statement creates a GeoDataFrame with the EPSG:4326 CRS
@@ -100,7 +102,7 @@ class BolideDataFrame(GeoDataFrame):
             init_gdf['source'] = 'pipeline'
 
         # rearrange columns, respecting original order if csv or pickle
-        if source not in ['csv', 'pickle']:
+        if source not in ['csv', 'pickle'] or rearrange is True:
             first_cols = [col for col in _FIRST_COLS if col in init_gdf.columns]
             other_cols = [col for col in init_gdf.columns if col not in first_cols]
             init_gdf = init_gdf[first_cols + other_cols]
@@ -112,10 +114,7 @@ class BolideDataFrame(GeoDataFrame):
         if annotate:
             self.annotate()
 
-        from configparser import ConfigParser
-        config = ConfigParser()
-        config.read(ROOT_PATH+'/desc.ini')
-        self.descriptions = config['neo-bolide']
+        self.descriptions = pd.read_csv(ROOT_PATH+'/metadata/columns.csv', index_col='column')
 
     def annotate(bdf):
         """Add metadata to bolide detections"""
@@ -133,12 +132,28 @@ class BolideDataFrame(GeoDataFrame):
         bdf['date_retrieved'] = datetime.now()
 
     def describe(self, key=None):
+        """Describe a variable of the BolieDataFrame
+
+        Parameters
+        ----------
+        key : str, iterable, or None
+            The variables to be described.
+            If str, describes that variable.
+            If iteralbe, describe all variable strings in the iterable.
+            If None, describe all variables in the BolideDataFrame.
+
+        Returns
+        -------
+        str :
+            A string describing the variable(s).
+        """
+
         if type(key) is str:
             key = [key]
         to_describe = self.columns if key is None else key
         for column in to_describe:
-            description = self.descriptions[column] if column in self.descriptions else ""
-            print(column, ":", description)
+            description = self.descriptions['description'][column] if column in self.descriptions.index else ""
+            print(column+":", description)
 
     def filter_date(self, start=None, end=None, inplace=False):
         """Filter bolides by date.
@@ -566,9 +581,12 @@ class BolideDataFrame(GeoDataFrame):
         fig.update_traces(marker=dict(size=8))
         from bolides.fov_utils import get_boundary
         import pyproj
+        import shapely
         from geopandas import GeoDataFrame
         if boundary is None:
             boundary = []
+        if type(boundary) is str:
+            boundary = [boundary]
         polygons = get_boundary(boundary)
         if type(polygons) is not list:
             polygons = [polygons]
@@ -576,15 +594,25 @@ class BolideDataFrame(GeoDataFrame):
         gdf = GeoDataFrame(geometry=polygons, crs=aeqd)
         gdf = gdf.to_crs('epsg:4326')
         polygons = gdf.geometry
+        start_color = len(fig.data)
         for num, polygon in enumerate(polygons):
-            lons, lats = polygon.exterior.coords.xy
-            lons = np.array(lons)
-            lats = np.array(lats)
-            if boundary[num] in ['goes', 'goes-w', 'goes-w-i', 'goes-w-ni']:
-                lons = lons - (lons > 50) * 360
+            if type(polygon) is shapely.geometry.MultiPolygon:
+                polygon_group = list(polygon)
+            else:
+                polygon_group = [polygon]
 
-            fig.add_trace(go.Scattergeo(mode="lines", lon=lons, lat=lats,
-                                        name=boundary[num], opacity=0.6))
+            from plotly.colors import qualitative
+            for i, p in enumerate(polygon_group):
+                lons, lats = p.exterior.coords.xy
+                lons = np.array(lons)
+                lats = np.array(lats)
+                if boundary[num] in ['goes', 'goes-w', 'goes-w-i', 'goes-w-ni']:
+                    lons = lons - (lons > 50) * 360
+                fig.add_trace(go.Scattergeo(mode="lines", lon=lons, lat=lats,
+                                            name=boundary[num], opacity=0.6,
+                                            line=dict(color=qualitative.Plotly[start_color+num]),
+                                            legendgroup=str(num),
+                                            showlegend=(i == 0)))
 
         return fig
 
@@ -917,6 +945,26 @@ class BolideDataFrame(GeoDataFrame):
         result = super().__getitem__(key)
         force_bdf_class(result)
         return result
+
+    def _repr_html_(self):
+
+        df_rep = super()._repr_html_()
+
+        good_sources = ['website', 'usg', 'pipeline']
+
+        attribution = ""
+
+        if 'source' in self.columns and len(self) > 0:
+            source = self['source'].iloc[0]
+            if source in good_sources:
+                with open(ROOT_PATH + '/metadata/' + source + '.html', 'r') as f:
+                    attribution = f.read()
+            if 'source_y' in self.columns and self['source_y'].iloc[0] in good_sources:
+                source = self['source_y'].iloc[0]
+                attribution += "Augmented with "
+                with open(ROOT_PATH + '/metadata/' + source + '.html', 'r') as f:
+                    attribution += f.read()
+        return attribution + df_rep
 
 
 def get_df_from_website():

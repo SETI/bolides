@@ -1,0 +1,55 @@
+column,sources,description
+datetime,all,Date and time of the bolide detection (UTC)
+longitude,all,Longitude of the bolide (°E).
+latitude,all,Latitude of the bolide (°N).
+source,all,Source of the data.
+energy,usg,The approximate total radiated energy in the atmosphere (J)
+impact-e,usg,The impact energy of the event (kt) computed from an empirical expression relating radiated and impact energy.
+alt,usg,Altitude in kilometers (km) above the reference geoid for the bolide detection.
+vel,usg,The magnitude of the bolide’s pre-impact velocity (km/s).
+detectedBy,website,Satellite(s) that detected the bolide.
+confidenceRating,website,Human-assigned confidence rating for the detection being a bolide.
+lightcurveStructure,website,Human-assigned description of how bolide-like the observed light curve is.
+energy_g16,website,Uncalibrated integrated energy of the bolide as viewed from GOES-16.
+energy_g17,website,Uncalibrated integrated energy of the bolide as viewed from GOES-17.
+brightness_g16,website,Uncalibrated brightness of the bolide as viewed from GOES-16.
+brightness_g17,website,Uncalibrated brightness of the bolide as viewed from GOES-17.
+brightness_cat_g16,website,Brightness category of the bolide as viewed from GOES-16.
+brightness_cat_g17,website,Brightness category of the bolide as viewed from GOES-17.
+_id,website,Unique identifier assigned to the bolide at neo-bolide.ndc.nasa.gov.
+description,website,A human-written description of the bolide detection
+groundTrack,website,"Dict stating, for each sensor, whether or not the bolide was present in more than one pixel, and how far the bolide went."
+howFound,website,The computational method used to find the bolide.
+otherDetectingSources,website,Other non-GLM sources which the bolide is present in.
+otherInformation,website,Human-written notes on the bolide detection.
+nearbyLightningActivity,website,Human-assigned description of how much lightning activity there was nearby at the time of the bolide detection.
+status,website,Publication status of the bolide.
+attachments,website,List of dicts containing extra data from the bolide detection.
+name,website,"Name of the bolide, if it has been named in the media."
+duration,website,
+latitudeDelta,website,
+longitudeDelta,website,
+beginningAltitude,website,
+lastModifiedBy,website,
+lastModifiedDate,website,
+enteredBy,website,
+enteredDate,website,
+createdAt,website,
+updatedAt,website,
+__v,website,
+submittedBy,website,
+submittedDate,website,
+publishedBy,website,
+publishedDate,website,
+images,website,Paths to images of the bolide detection at neo-bolide.ndc.nasa.gov.
+csv,website,Paths to csv files of the bolide detection at neo-bolide.ndc.nasa.gov.
+platform,website,
+reason,website,
+rejectedBy,website,
+rejectedDate,website,
+geometry,all,Shapely Point object representing the bolide's location on the globe.
+phase,all,"The phase of the moon at the time of the bolide detection. 0=new moon, 0.5=full moon, 0.999=almost new moon."
+moon_fullness,all,"How full the moon was at the time of the bolide detection. 0=new moon, 1=full moon. ~0.25=waxing or waning crescent"
+solarhour,all,The local solar time of the bolide detection.
+sun_alt,all,The altitude of the sun (°) at the time and place of the bolide detection
+date_retrieved,all,Date that the data was retrieved from the source (UTC)

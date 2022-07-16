@@ -4,7 +4,7 @@ import pyproj
 import cartopy.crs as ccrs
 from shapely.geometry import Point, Polygon, LinearRing
 
-from . import GLM_FOV_PATH
+from . import GLM_FOV_PATH, ROOT_PATH
 from .utils import reconcile_input
 
 
@@ -34,6 +34,13 @@ def add_boundary(ax, boundary=None, boundary_style={}):
 def get_boundary(boundary, collection=True, intersection=False):
     """Get specified boundary polygons.
 
+    GOES GLM FOV obtained from a netCDF4 file kindly provided by Katrina Virts
+    (NASA/MSFC; katrina.virts@uah.edu)
+    based on information from Doug Mach and Clem Tillier.
+    Fengyun-4A FOV obtained by eye from several papers.
+    Global Meteor Network FOV obtained from KML files at
+    https://globalmeteornetwork.org/data/.
+
     Possible values in boundary:
 
     - ``'goes'``: Combined FOV of the GLM aboard GOES-16 and GOES-17
@@ -46,6 +53,9 @@ def get_boundary(boundary, collection=True, intersection=False):
     - ``'fy4a'``: Combined FOV of the Fengyun-4A LMI, in both North and South configurations.
     - ``'fy4a-n'``: Fengyun-4A LMI FOV when in the North configuration (summer).
     - ``'fy4a-s'``: Fengyun-4A LMI FOV when in the South configuration (winter).
+    - ``'gmn-25km'``: Combined FOV of all Global Meteor Network stations at 25km detection altitude.
+    - ``'gmn-70km'``: Combined FOV of all Global Meteor Network stations at 70km detection altitude.
+    - ``'gmn-100km'``: Combined FOV of all Global Meteor Network stations at 100km detection altitude.
 
     Parameters
     ----------
@@ -71,10 +81,11 @@ def get_boundary(boundary, collection=True, intersection=False):
         boundary = boundary.lower()
 
     valid_boundaries = ['goes-w-ni', 'goes-w-i', 'goes-w', 'goes-e', 'goes',
-                        'fy4a-s', 'fy4a-n', 'fy4a', 'goes-17-89.5']
+                        'fy4a-s', 'fy4a-n', 'fy4a', 'goes-17-89.5',
+                        'gmn-100km', 'gmn-70km', 'gmn-25km']
 
     if type(boundary) is str and boundary not in valid_boundaries:
-        raise ValueError("unknown boundary \""+boundary+"\"")
+        raise ValueError("unknown boundary \""+boundary+"\". Valid boundaries are: \n"+str(valid_boundaries))
 
     if type(boundary) is not str and not hasattr(boundary, '__iter__'):
         raise ValueError("boundary must be a string or list")
@@ -128,6 +139,15 @@ def get_boundary(boundary, collection=True, intersection=False):
     elif boundary == 'fy4a':
         return get_boundary(['fy4a-s', 'fy4a-n'], collection=False)
 
+    elif boundary == 'gmn-100km':
+        return load_gmn_shp('100km')
+
+    elif boundary == 'gmn-70km':
+        return load_gmn_shp('70km')
+
+    elif boundary == 'gmn-25km':
+        return load_gmn_shp('25km')
+
     polygons = []
     for b in boundary:
         new_boundary = get_boundary(b)
@@ -155,6 +175,20 @@ def aeqd_from_lonlat(polygon):
     gdf = GeoDataFrame(geometry=[polygon], crs='epsg:4326')
     gdf = gdf.to_crs(aeqd)
     return gdf.geometry[0]
+
+def load_gmn_shp(distance):
+    # load Global Meteor Network shapefiles
+    aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=90, lon_0=0).srs
+    from geopandas import read_file
+    path = ROOT_PATH+'/data/gmn/'+distance+'.shp'
+    gdf = read_file(path)
+    gdf = gdf.to_crs(aeqd)
+
+    # combine them into one polygon, buffering to resolve shape problems
+    from shapely.ops import unary_union
+    polygons = [p.buffer(0) for p in gdf.geometry]
+    return unary_union(polygons)
+
 
 
 # get corner points of fy4a FOV and return boundary

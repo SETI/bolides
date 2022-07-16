@@ -181,7 +181,8 @@ light curve.
                        style={'display': 'inline-block'}, debounce=True)]),
 
     html.Div(children=['Field-of-view options:  ',
-        dcc.Checklist(['goes', 'goes-e', 'goes-w', 'goes-w-ni', 'goes-w-i', 'fy4a-n', 'fy4a-s'],
+        dcc.Checklist(['goes', 'goes-e', 'goes-w', 'goes-w-ni', 'goes-w-i',
+                       'fy4a', 'fy4a-n', 'fy4a-s', 'gmn-25km', 'gmn-70km', 'gmn-100km'],
                       [], inline=True, id='boundary-checklist',
                       style={'display': 'inline-block'})]),
 
@@ -470,6 +471,7 @@ def update_map(source, rows, color_column, log_color, boundary_checklist, projec
     if projection == 'eckert4 ':
         projection = 'eckert4'
     fig = df.plot_interactive(projection, boundary_checklist, color_column, logscale)
+    fig.update_layout(uirevision=str(source)+str(projection))
     return fig
 
 
