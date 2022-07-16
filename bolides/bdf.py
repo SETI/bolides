@@ -948,7 +948,8 @@ class BolideDataFrame(GeoDataFrame):
 
     def _repr_html_(self):
 
-        df_rep = super()._repr_html_()
+        with pd.option_context('display.max_columns', None):
+            df_rep = super()._repr_html_()
 
         good_sources = ['website', 'usg', 'pipeline']
 
