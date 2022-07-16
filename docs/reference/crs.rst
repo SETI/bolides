@@ -11,8 +11,8 @@ for documentation on their projections.
 
 `bolides` also provides a few of its own projections, which you can see below.
 
-Coordinate Reference System API
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Built-in Coordinate Reference Systems
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autosummary::
    :toctree: api/

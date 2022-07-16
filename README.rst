@@ -12,7 +12,7 @@ bolides
                 :target: https://pypi.org/project/bolides/
                 :alt: PyPI link
 
-``bolides`` is primarily designed to work with bolide detections from the Geostationary Lightning Mapper instruments aboard GOES-16 and GOES-17 that are published at `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_. But ``bolides`` can also read bolide data from ZODB database files produced by the GLM bolide detection pipeline, from `US Government sensors <https://cneos.jpl.nasa.gov/fireballs/>`_, and from your own .csv files containing bolide data.
+``bolides`` is a community package primarily designed to work with bolide detections from the Geostationary Lightning Mapper instruments aboard GOES-16 and GOES-17 that are published at `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_. But ``bolides`` can also read bolide data from ZODB database files produced by the GLM bolide detection pipeline, from `US Government sensors <https://cneos.jpl.nasa.gov/fireballs/>`_, and from your own .csv files containing bolide data.
 
 **Functionality**
 
@@ -26,6 +26,7 @@ bolides
 - Plot GLM fields-of-view in the GOES-West and GOES-East positions, and filter bolide detections by the FOV.
 - Augment one data set with data from another, automatically matching bolide detections from different sources.
 - Pull corresponding bolide light curves from `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_ and plot them.
+- Run an `interactive webapp <https://bolides.aozerov.com>'_.
 
 **Documentation**
 
@@ -36,10 +37,11 @@ All package documentation is hosted at `bolides.readthedocs.io <https://bolides.
 Steps 1 and 2 below can be skipped if you do not wish to use any plotting functions. However, you will still need to ``pip install shapely``.
 
 #. First, `PROJ <https://proj.org/install.html>`_ needs to be installed on your system using the installation instructions at the link. `GEOS <https://libgeos.org/usage/install/>`_ also needs to be installed. On Ubuntu both can be installed with ``sudo apt install proj-bin libproj-dev libgeos-dev``.
-#. Next, due to `known Cartopy and Shapely problems <https://github.com/SciTools/cartopy/issues/738>`_, Cartopy and Shapely need to be installed manually. This is done with: ``pip install numpy && pip install cartopy==0.18.0 shapely --no-binary cartopy --no-binary shapely``. Note that an older Cartopy version is recommended to prevent it from requiring PROJ versions not yet in common repositories.
+#. Next, due to `known Cartopy and Shapely problems <https://github.com/SciTools/cartopy/issues/738>`_, Cartopy and Shapely need to be installed manually. This is done with: ``pip install numpy && pip install cartopy==0.18.0 shapely --no-binary cartopy --no-binary shapely``. Note that an older Cartopy version is recommended to prevent it from requiring PROJ versions not yet in common repositories. If you already have PROJ 8.0.0, you may omit the ``==0.18.0`` and install the latest Cartopy version.
 #. ``bolides`` can be then be (hypothetically) installed with ``pip install bolides``. As the code on this branch is not on PyPI yet, it can be installed from TestPyPI with ``pip install -i https://test.pypi.org/simple/ bolides --extra-index-url https://pypi.org/simple/``
 
-Note: if you wish to install the repository in an editable mode, you can ``git clone`` this repository, then enter the repository's directory and run ``pip install -e .``
+| Note: if you wish to install the repository in an editable mode, you can ``git clone`` this repository, then enter the repository's directory and run ``pip install -e .``
+| As this is still not the main branch, you will have to do ``git checkout bdf-implementation`` in the repository to switch to this branch before running ``pip install -e .``
 
 **Tutorial**
 
