@@ -75,4 +75,5 @@ intersphinx_mapping = {'pandas': ('https://pandas.pydata.org/pandas-docs/stable/
                        'astropy': ('https://docs.astropy.org/en/latest/', None),
                        'shapely': ('https://shapely.readthedocs.io/en/stable/', None),
                        'cartopy': ('https://scitools.org.uk/cartopy/docs/latest/', None),
-                       'plotly': ('https://plotly.com/python-api-reference/', None)}
+                       'plotly': ('https://plotly.com/python-api-reference/', None),
+                       'poliastro': ('https://docs.poliastro.space/en/stable/', None)}

@@ -6,6 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from bolides import BolideDataFrame
+from bolides import ShowerDataFrame
 
 import datetime
 import numpy as np
@@ -18,7 +19,8 @@ app = Dash(__name__, server=server)
 app.title = 'bolide visualizer'
 
 source_dict = {'USG data at https://cneos.jpl.nasa.gov/fireballs/': 'usg',
-               'GLM data at https://neo-bolide.ndc.nasa.gov/': 'website'}
+               'GLM data at https://neo-bolide.ndc.nasa.gov/': 'website',
+               'Meteor shower data at https://www.ta3.sk/IAUC22DB/MDC2007/': 'showers'}
 projections = ['eckert4', 'GOES-E', 'GOES-W', 'FY4A',
                'airy', 'aitoff', 'albers', 'albers usa', 'august',
                'azimuthal equal area', 'azimuthal equidistant', 'baker',
@@ -60,7 +62,11 @@ def generate_table(dataframe, max_rows=10):
 
 
 def df_from_source(source, filename):
-    df = BolideDataFrame(source)
+    if source == 'showers':
+        df = ShowerDataFrame()
+    else:
+        df = BolideDataFrame(source)
+
     for col in df.columns:
         if type(df[col][0]) in [list, dict]:
             df[col] = [str(x) for x in df[col]]
@@ -76,7 +82,10 @@ def get_df(source):
     if os.path.isfile(filename):
         print(filename, 'exists')
         try:
-            df = BolideDataFrame(source='csv', files=filename, annotate=False)
+            if source == 'showers':
+                df = ShowerDataFrame(source='csv', file=filename)
+            else:
+                df = BolideDataFrame(source='csv', files=filename, annotate=False)
         except pd.errors.ParserError:
             print('Reading csv failed. Fetching again.')
             df = df_from_source(source, filename)
@@ -120,24 +129,35 @@ def get_df_from_filters(source, filter_query=None, start_date=None, end_date=Non
                             ascending=[col['direction'] == 'asc' for col in sort_by],
                             inplace=False)
 
-    df.__class__ = BolideDataFrame
-    df = df.filter_date(start=start_date, end=end_date)
-    if len(boundary_checklist) > 0 and 'Filter by FOV' in filter_fov:
-        intersection = "Intersection" in filter_fov
-        df = df.filter_boundary(boundary_checklist, intersection=intersection)
+    if source_dict[source] == 'showers':
+        df.__class__ = ShowerDataFrame
+        return df
+    else:
+        df.__class__ = BolideDataFrame
+        df = df.filter_date(start=start_date, end=end_date)
+        if len(boundary_checklist) > 0 and 'Filter by FOV' in filter_fov:
+            intersection = "Intersection" in filter_fov
+            df = df.filter_boundary(boundary_checklist, intersection=intersection)
 
-    del df['geometry']
-    return df
+        del df['geometry']
+        return df
 
 
 def get_df_from_idx(source, rows):
     if source is None:
         df = pd.DataFrame({})
+
     else:
         df = get_df(source)
         df = df.loc[rows]
+
+    if 'geometry' in df.columns:
         del df['geometry']
-    df.__class__ = BolideDataFrame
+
+    if source is not None and source_dict[source] == 'showers':
+        df.__class__ = ShowerDataFrame
+    else:
+        df.__class__ = BolideDataFrame
     return df
 
 
@@ -330,7 +350,8 @@ def update_dropdowns(source, scatter_x, scatter_y, hist_var, color):
             elif len(df[col].unique()) < 20 and len(df[col].unique()) > 1:
                 color_columns.append(col)
 
-        numeric_columns.insert(0, 'datetime')
+        if source_dict[source] != 'showers':
+            numeric_columns.insert(0, 'datetime')
 
     if scatter_x not in numeric_columns:
         scatter_x = None
@@ -460,8 +481,10 @@ Input("data-rows", "data"),
 Input("color", "value"),
 Input('log-color', 'value'),
 Input('boundary-checklist', 'value'),
-Input('projection', 'value'))
-def update_map(source, rows, color_column, log_color, boundary_checklist, projection):
+Input('projection', 'value'),
+Input('main-table', "page_current"),
+Input('main-table', "page_size"))
+def update_map(source, rows, color_column, log_color, boundary_checklist, projection, page_current, page_size):
     print('updating map')
     df = get_df_from_idx(source, rows)
     if color_column not in df.columns:
@@ -470,7 +493,12 @@ def update_map(source, rows, color_column, log_color, boundary_checklist, projec
     logscale = 'log color scale' in log_color
     if projection == 'eckert4 ':
         projection = 'eckert4'
-    fig = df.plot_interactive(projection, boundary_checklist, color_column, logscale)
+    if source is not None and source_dict[source] == 'showers':
+        df = df.iloc[page_current * page_size:(page_current + 1) * page_size]
+        df.__class__ = ShowerDataFrame
+        fig = df.plot_orbits(use_3d=True)._figure
+    else:
+        fig = df.plot_interactive(projection, boundary_checklist, color_column, logscale)
     fig.update_layout(uirevision=str(source)+str(projection))
     return fig
 
@@ -566,4 +594,4 @@ app.index_string = '''
 </html>
 '''
 if __name__ == '__main__':
-    app.run_server(debug=False)
+    app.run_server(debug=True)

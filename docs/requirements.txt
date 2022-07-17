@@ -11,3 +11,4 @@ lightkurve
 scikit-learn
 astropy
 plotly
+poliastro

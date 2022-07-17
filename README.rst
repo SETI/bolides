@@ -26,6 +26,7 @@ bolides
 - Plot GLM fields-of-view in the GOES-West and GOES-East positions, and filter bolide detections by the FOV.
 - Augment one data set with data from another, automatically matching bolide detections from different sources.
 - Pull corresponding bolide light curves from `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_ and plot them.
+- Pull meteor shower data from the `IAU Meteor Data Center <https://www.ta3.sk/IAUC22DB/MDC2007/>`_ and plot their orbits.
 - Run an `interactive webapp <https://bolides.aozerov.com>`_.
 
 **Documentation**

@@ -287,9 +287,10 @@ class BolideDataFrame(GeoDataFrame):
         ----------
         sensors: str or list of str
             The sensor(s) to filter the `~BolideDataFrame` by:
+
             - ``'glm16'``: The Geostationary Lightning Mapper aboard GOES-16.
             - ``'glm17'``: The Geostationary Lightning Mapper aboard GOES-17.
-            Note that the biannual yaw flips of GOES-17 are taken into account.
+              Note that the biannual yaw flips of GOES-17 are taken into account.
 
         Returns
         -------
