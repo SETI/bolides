@@ -1,6 +1,6 @@
 import pandas as pd
-import numpy as np
 import requests
+
 
 class ShowerDataFrame(pd.DataFrame):
     """
@@ -65,14 +65,14 @@ class ShowerDataFrame(pd.DataFrame):
         if use_3d:
             interactive = True
 
-        from poliastro.bodies import Sun, Earth
+        from poliastro.bodies import Sun
         from astropy import units as u
         from poliastro.twobody import Orbit
 
-        df = self.dropna(subset=['a','e','inc','node','peri'])
+        df = self.dropna(subset=['a', 'e', 'inc', 'node', 'peri'])
 
         import warnings
-        if use_3d and len(df)>50:
+        if use_3d and len(df) > 50:
             warnings.warn('This will plot a lot of orbits and may crash your browser.\n\
                            If you are afraid of this happening, please do now use show()')
 
@@ -85,8 +85,8 @@ class ShowerDataFrame(pd.DataFrame):
         plotter = plot_solar_system(use_3d=use_3d, interactive=interactive, epoch=epoch)
         plotter.set_attractor(Sun)
 
-        from tqdm import tqdm
-        for num, row in tqdm(df.iterrows()):
+        from poliastro.frames import Planes
+        for num, row in df.iterrows():
             a = row['a'] * u.AU
             ecc = row['e'] * u.one
             inc = row['inc'] * u.deg
@@ -94,7 +94,7 @@ class ShowerDataFrame(pd.DataFrame):
             argp = row['peri'] * u.deg
             nu = 5 * u.deg
             try:
-                orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu)
+                orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu, plane=Planes.EARTH_ECLIPTIC)
             except ValueError:
                 continue
             plotter.plot(orb, label=row['shower name'])
@@ -102,7 +102,7 @@ class ShowerDataFrame(pd.DataFrame):
             fig = plotter._figure
             fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=900)
             axis_dict = {'showgrid': False, 'zeroline': False, 'visible': False}
-            fig.update_layout(scene={'xaxis':axis_dict, 'yaxis':axis_dict, 'zaxis':axis_dict})
+            fig.update_layout(scene={'xaxis': axis_dict, 'yaxis': axis_dict, 'zaxis': axis_dict})
         return plotter
 
     def __setattr__(self, attr, val):
@@ -118,6 +118,7 @@ class ShowerDataFrame(pd.DataFrame):
     def _repr_html_(self):
         with pd.option_context('display.max_columns', None):
             return super()._repr_html_()
+
 
 def force_showers_class(showers):
     if isinstance(showers, pd.DataFrame):
