@@ -218,19 +218,19 @@ light curve.
         html.Div(children=[
             dcc.Dropdown([], id='scatter-x',
                 placeholder='Select an x-variable',
-                style={'display': 'inline-block', 'width': '20vw', 'margin': '0 auto'}),
+                style={'display': 'inline-block', 'width': '22vw', 'margin': '0 auto'}),
             dcc.Dropdown([], id='scatter-y',
                 placeholder='Select a y-variable',
-                style={'display': 'inline-block', 'width': '20vw', 'margin': '0 auto'}),
+                style={'display': 'inline-block', 'width': '22vw', 'margin': '0 auto'}),
             dcc.Graph(id='scatter', config={'displaylogo': False})],
-            style={'display': 'inline-block', 'width': '40vw', 'margin': '0 auto'}),
+            style={'display': 'inline-block', 'width': '45vw', 'margin': '0 auto'}),
         html.Div(children=[
             dcc.Dropdown(['latitude'], 'latitude', id='hist-var',
                          placeholder='Select a variable to make a histogram from'),
             html.Div(children=["Number of bins: ",
                 dcc.Input(type='number', min=1, max=500, value=30, id='hist-bins', style={'display': 'inline-block'})]),
             dcc.Graph(id='hist', config={'displaylogo': False})],
-            style={'display': 'inline-block', 'width': '40vw', 'margin': '0 auto'})
+            style={'display': 'inline-block', 'width': '45vw', 'margin': '0 auto'})
         ]),
     html.Div(children=[], id='lightcurve'),
     html.Button("Export light curve(s) as csv", id="save-button-lc", style={'display': 'none'}),
@@ -496,10 +496,11 @@ def update_map(source, rows, color_column, log_color, boundary_checklist, projec
     if source is not None and source_dict[source] == 'showers':
         df = df.iloc[page_current * page_size:(page_current + 1) * page_size]
         df.__class__ = ShowerDataFrame
-        fig = df.plot_orbits(use_3d=True)._figure
+        fig = df.plot_orbits(use_3d=True, num_points=150)._figure
     else:
         fig = df.plot_interactive(projection, boundary_checklist, color_column, logscale)
     fig.update_layout(uirevision=str(source)+str(projection))
+    fig.update_layout(legend={'orientation': 'h', 'y':1})
     return fig
 
 

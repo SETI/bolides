@@ -767,7 +767,8 @@ class BolideDataFrame(GeoDataFrame):
 
     def plot_dates(self, freq='1D', logscale=False,
                    start=None, end=None,
-                   figsize=(10, 3), style=MPLSTYLE, **kwargs):
+                   figsize=(10, 3), style=MPLSTYLE,
+                   showers=None, **kwargs):
         """Plot the number of bolides over time.
 
         Parameters
@@ -801,9 +802,24 @@ class BolideDataFrame(GeoDataFrame):
 
         # filter date to given start and end times
         bdf = self.filter_date(start, end, inplace=False)
+        datetimes = bdf.datetime
 
         # get counts according to the given frequency
-        counts = bdf.groupby(pd.Grouper(key='datetime', freq=freq)).count()
+        index = bdf.groupby(pd.Grouper(key='datetime', freq=freq)).count().index
+
+        if showers is not None:
+
+            # a ShowerDataFrame is stored in the _showers attribute, so that
+            # users can make multiple plots without constantly recreating it
+            if hasattr(self, '_showers'):
+                sdf = self._showers
+            else:
+                from . import ShowerDataFrame
+                sdf = ShowerDataFrame()
+                self._showers = sdf
+            date_info = sdf.get_dates(showers, range(min(bdf.datetime).year-1, max(bdf.datetime).year+1))
+            shower_names = date_info['shower name']
+            shower_dates = date_info.datetime
 
         # with the given matplotlib style,
         with plt.style.context(style):
@@ -816,8 +832,8 @@ class BolideDataFrame(GeoDataFrame):
             ax.xaxis.set_minor_formatter(mdates.DateFormatter('%m'))
 
             # make minor ticks (months) small, pad major ticks (years)
-            plt.tick_params(axis='x', which='minor', labelsize=5, pad=0)
-            plt.tick_params(axis='x', which='major', pad=3)
+            plt.tick_params(axis='x', which='minor', labelsize=5, pad=0, labeltop=True)
+            plt.tick_params(axis='x', which='major', pad=3, labeltop=True)
 
             # set x-label, adding year data if data is only within one year
             # (and hence no year data on x-axis)
@@ -826,18 +842,32 @@ class BolideDataFrame(GeoDataFrame):
                 ax.set_xlabel("Date (month in "+str(min(bdf.datetime).year)+")")
             ax.set_ylabel("# Events")
 
-            # adjust width according to number of bars, if not specified
-            if 'width' not in kwargs:
-                kwargs['width'] = max(100/len(counts), 1)
+            from matplotlib.dates import date2num
+            plt.hist(datetimes, bins=index, **kwargs)
 
-            # make bar plot, passing kwargs through
-            ax.bar(counts.index, counts.iloc[:, 0], **kwargs)
             # set x-limits to data limits
             plt.xlim(min(bdf.datetime), max(bdf.datetime))
+
+            if showers is not None:
+                names = list(shower_names)#list(shower_names.unique())
+                unique = list(shower_names.unique())
+                import matplotlib.cm as cm
+                cmap = cm.Set2
+
+                for name, date in zip(shower_names, shower_dates):
+                    line = plt.axvline(x=date, color=cmap(unique.index(name)/8),
+                                       label=name, linestyle='dashed', linewidth=1,
+                                       alpha=0.5)
+                    #line.set_zorder(0)
+                for i, p in enumerate(ax.get_lines()):    # this is the loop to change Labels and colors
+                    if p.get_label() in names[:i]:    # check for Name already exists
+                        p.set_label('_' + p.get_label())       # hide label in auto-legend
+                plt.legend(loc='upper right')
 
             # make y-axis logscale if specified
             if logscale:
                 ax.set_yscale('log')
+
 
         return fig, ax
 

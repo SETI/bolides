@@ -57,8 +57,7 @@ def sol_lon_to_jd(lon, year):
     from math import radians
     lon = radians(lon)
     Y = year
-    M = floor(lon/360 * 12)+1
-    print(M)
+    M = floor(lon/360 * 12)+3
     D = 1
     from datetime import datetime
     dt = datetime(Y, M, D, 0, 0, 0)
