@@ -120,8 +120,6 @@ class ShowerDataFrame(pd.DataFrame):
             fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=900)
             axis_dict = {'showgrid': False, 'zeroline': False, 'visible': False}
             fig.update_layout(scene={'xaxis': axis_dict, 'yaxis': axis_dict, 'zaxis': axis_dict})
-            fig.update_layout(scene_camera=dict(up=dict(x=0, y=0, z=1),
-                              center=dict(x=0, y=0, z=0)))
 
             # replace spheres with points and shorten labels
             import plotly.graph_objects as go
@@ -149,6 +147,32 @@ class ShowerDataFrame(pd.DataFrame):
                     good_data.append(data)
                 i += 1
             fig.data = good_data
+
+            min_x = min([min(d.x) for d in fig.data])
+            min_y = min([min(d.y) for d in fig.data])
+            min_z = min([min(d.z) for d in fig.data])
+            max_x = max([max(d.x) for d in fig.data])
+            max_y = max([max(d.y) for d in fig.data])
+            max_z = max([max(d.z) for d in fig.data])
+
+            a_x = max_x-min_x
+            a_y = max_y-min_y
+            a_z = max_z-min_z
+            c_x = min_x + a_x/2
+            c_y = min_y + a_y/2
+            c_z = min_z + a_z/2
+
+            longest = max([a_x, a_y, a_z])
+            fig.update_scenes(aspectratio=dict(x=a_x/longest, y=a_y/longest, z=a_z/longest),
+                              aspectmode="manual")
+
+            x = (0-c_x)/a_x * a_x/longest
+            y = (0-c_y)/a_y * a_y/longest
+            z = (0-c_z)/a_z * a_z/longest
+            fig.update_layout(scene_camera=dict(up=dict(x=0, y=0, z=1),
+                              center=dict(x=x, y=y, z=z)))
+
+            print(fig.layout.scene)
         return plotter
 
     def get_dates(self, showers, years):
