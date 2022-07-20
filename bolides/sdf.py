@@ -13,8 +13,9 @@ class ShowerDataFrame(pd.DataFrame):
         Specifies the source for the initialized. Can be:
 
         - ``'established', 'all', 'working'``: initialize from different sets
-        of data offered at the IAU Meteor Data Center, https://www.ta3.sk/IAUC22DB/MDC2007/
+          of data offered at the IAU Meteor Data Center, https://www.ta3.sk/IAUC22DB/MDC2007/
         - ``'csv'``: initialize from a .csv file
+
     file : str
         Specifies files to be used if the source is ``'csv'``
     """

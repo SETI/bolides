@@ -3,12 +3,12 @@
 .. rst-class:: frontpage
 
 .. include:: ../README.rst
-   :end-before: **Documentation**
+   :end-before: end-before-here
 
 **Historical Note**
 
 .. include:: ../README.rst
-   :start-after: **Historical Note**
+   :start-after: start-after-here
 
 Documentation
 -------------
