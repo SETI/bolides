@@ -436,9 +436,9 @@ def download_as_csv(n_clicks, source, rows):
     if len(df) == 0:
         filename = "column_names.csv"
     else:
-        dt = datetime.datetime.fromisoformat(df.date_retrieved[0])
+        dt = datetime.datetime.fromisoformat(df.date_retrieved.iloc[0])
         datestr = dt.strftime("%Y%m%d%H%M%S")
-        filename = df.source[0]+'_'+datestr+'.csv'
+        filename = df.source.iloc[0]+'_'+datestr+'.csv'
     return dict(content=download_buffer.getvalue(), filename=filename)
 
 
