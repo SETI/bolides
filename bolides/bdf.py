@@ -1,6 +1,6 @@
 import os
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from warnings import warn, filterwarnings
 from tqdm import tqdm
 
@@ -342,6 +342,45 @@ class BolideDataFrame(GeoDataFrame):
         force_bdf_class(filtered)
         return filtered
 
+    def filter_shower(self, shower=None, years=None, padding=1):
+        """Filter data to only points observable (in time and space) by a given sensor.
+
+        Parameters
+        ----------
+        shower: str, int, list of str, or list of int
+            The meteor shower(s) to filter by. Can enter either IAU number,
+            IAU 3-letter code, or full shower name. Refer to the IAU Meteor
+            Data center at https://www.ta3.sk/IAUC22DB/MDC2007/.
+        years: int or list of int
+            The shower years to include. Default is to filter for all occurrences
+            of the shower(s) in the BolideDataFrame
+        padding: the number of days to pad around the peak time.
+
+        Returns
+        -------
+        `~BolideDataFrame`
+            The filtered `~BolideDataFrame`
+        """
+        if years is None:
+            years = list(range(min(self.datetime).year-1, max(self.datetime).year+1))
+        elif type(years) is int:
+            years = [years]
+
+        if hasattr(self, '_showers'):
+            sdf = self._showers
+        else:
+            from . import ShowerDataFrame
+            sdf = ShowerDataFrame()
+            self._showers = sdf
+
+        dates = sdf.get_dates(shower, years).datetime
+        date_padding = timedelta(days=padding)
+        date_ranges = [[d-date_padding, d+date_padding] for d in dates]
+
+        counts = np.sum(np.array([list(self.datetime.between(d[0], d[1])) for d in date_ranges]), axis=0)
+        good_locs = counts != np.zeros(len(counts))
+        return self[good_locs]
+
     def plot_detections(self, crs=None,
                         category=None, coastlines=True, style=MPLSTYLE,
                         boundary=None, boundary_style={}, figsize=(8, 8),
@@ -417,7 +456,7 @@ class BolideDataFrame(GeoDataFrame):
         with plt.style.context(style):
 
             # generate Figure and GeoAxes with the given proejction
-            fig, ax = plt.subplots(subplot_kw={'projection': crs}, figsize=(8, 8))
+            fig, ax = plt.subplots(subplot_kw={'projection': crs}, figsize=figsize)
 
             ax.stock_img()  # plot background map
 
@@ -846,7 +885,9 @@ class BolideDataFrame(GeoDataFrame):
             plt.hist(datetimes, bins=index, **kwargs)
 
             # set x-limits to data limits
-            plt.xlim(min(bdf.datetime), max(bdf.datetime))
+            x_min = datetime.fromisoformat(start) if start is not None else min(bdf.datetime)
+            x_max = datetime.fromisoformat(end) if end is not None else max(bdf.datetime)
+            plt.xlim(x_min, x_max)
 
             if showers is not None:
                 names = list(shower_names)#list(shower_names.unique())

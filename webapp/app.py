@@ -125,9 +125,11 @@ def get_df_from_filters(source, filter_query=None, start_date=None, end_date=Non
                 df = df.loc[df[col_name].str.startswith(filter_value)]
     # sort
     if sort_by is not None and len(sort_by) > 0:
-        df = df.sort_values([col['column_id'] for col in sort_by],
-                            ascending=[col['direction'] == 'asc' for col in sort_by],
-                            inplace=False)
+        good_sorts = [col for col in sort_by if col['column_id'] in df.columns]
+        if len(good_sorts)>0:
+            df = df.sort_values([col['column_id'] for col in good_sorts],
+                                ascending=[col['direction'] == 'asc' for col in good_sorts],
+                                inplace=False)
 
     if source_dict[source] == 'showers':
         df.__class__ = ShowerDataFrame

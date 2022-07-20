@@ -124,16 +124,19 @@ class ShowerDataFrame(pd.DataFrame):
             # replace spheres with points and shorten labels
             import plotly.graph_objects as go
             good_data = []
-            planets = ['Sun', 'Mercury', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']
+            planets = ['Sun', 'Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']
             i = 0
+            sun_added = False
             while(i < len(fig.data)):
                 data = fig.data[i]
                 orig_name = data.name
-                if data.name == 'Sun':
-                    data.name = 'padding (Sun)'
-                data.name = " (".join(data.name.split(' (')[1:])[:-1]
+                sun = data.name == 'Sun'
+                if not sun:
+                    data.name = " (".join(data.name.split(' (')[1:])[:-1]
 
-                if any([data.name.__contains__(p) for p in planets]) and type(data) is go.Surface:
+                print(data)
+                planet = any([data.name.__contains__(p) for p in planets])
+                if planet and type(data) is go.Surface:
                     name = orig_name
                     x = np.mean(data.x)
                     y = np.mean(data.y)
@@ -143,8 +146,12 @@ class ShowerDataFrame(pd.DataFrame):
                     fig.update_traces(marker=dict(color=color, size=4),
                                       selector=dict(name=name, type='scatter3d'),
                                       showlegend=False)
-                if type(data) is not go.Surface:
+                if not planet:
+                    fig.update_traces(line_dash='dot', selector=dict(name=data.name, type='scatter3d'))
+                if type(data) is not go.Surface and (not sun or not sun_added):
                     good_data.append(data)
+                    if sun:
+                        sun_added = True
                 i += 1
             fig.data = good_data
 
@@ -172,7 +179,6 @@ class ShowerDataFrame(pd.DataFrame):
             fig.update_layout(scene_camera=dict(up=dict(x=0, y=0, z=1),
                               center=dict(x=x, y=y, z=z)))
 
-            print(fig.layout.scene)
         return plotter
 
     def get_dates(self, showers, years):

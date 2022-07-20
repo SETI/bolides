@@ -1,5 +1,4 @@
 def dict_from_zodb(files, min_confidence):
-    import ZODB
     import ZODB.FileStorage
     import zc.zlibstorage
     from tqdm import tqdm

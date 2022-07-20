@@ -26,6 +26,7 @@ Filtering
     BolideDataFrame.filter_date
     BolideDataFrame.filter_boundary
     BolideDataFrame.filter_observation
+    BolideDataFrame.filter_shower
 
 Search
 ~~~~~~
