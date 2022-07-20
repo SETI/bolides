@@ -40,6 +40,7 @@ All package documentation is hosted at `bolides.readthedocs.io <https://bolides.
 
 Installation
 ============
+.. installation-start
 We want to make installation as easy as possible. If you have any problems with the installation process, please `open an issue <https://github.com/jcsmithhere/bolides/issues/new/choose>`_.
 
 Dependencies
@@ -63,6 +64,7 @@ While the package is still in development we recommend installing from source:
 
 You can also install the code on this branch from TestPyPI using ``pip install -i https://test.pypi.org/simple/ bolides --extra-index-url https://pypi.org/simple/``, but this is not recommended and is just for distribution testing.
 
+.. installation-end
 Tutorial
 ========
 

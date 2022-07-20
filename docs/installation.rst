@@ -7,5 +7,5 @@ Installation
 ###################################
 
 .. include:: ../README.rst
-   :start-after: **Installation**
-   :end-before: **Tutorial**
+   :start-after: installation-start
+   :end-before: installation-end
