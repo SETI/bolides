@@ -134,7 +134,6 @@ class ShowerDataFrame(pd.DataFrame):
                 if not sun:
                     data.name = " (".join(data.name.split(' (')[1:])[:-1]
 
-                print(data)
                 planet = any([data.name.__contains__(p) for p in planets])
                 if planet and type(data) is go.Surface:
                     name = orig_name
