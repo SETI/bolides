@@ -618,6 +618,7 @@ class BolideDataFrame(GeoDataFrame):
                             projection_rotation={'lon': rotation})
 
         fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=900)
+        fig.update_geos(landcolor="White", lataxis_showgrid=True, lonaxis_showgrid=True)
         fig.update_traces(marker=dict(size=8))
         from bolides.fov_utils import get_boundary
         import pyproj
@@ -881,7 +882,6 @@ class BolideDataFrame(GeoDataFrame):
                 ax.set_xlabel("Date (month in "+str(min(bdf.datetime).year)+")")
             ax.set_ylabel("# Events")
 
-            from matplotlib.dates import date2num
             plt.hist(datetimes, bins=index, **kwargs)
 
             # set x-limits to data limits
@@ -890,25 +890,24 @@ class BolideDataFrame(GeoDataFrame):
             plt.xlim(x_min, x_max)
 
             if showers is not None:
-                names = list(shower_names)#list(shower_names.unique())
+                names = list(shower_names)
                 unique = list(shower_names.unique())
                 import matplotlib.cm as cm
                 cmap = cm.Set2
 
                 for name, date in zip(shower_names, shower_dates):
-                    line = plt.axvline(x=date, color=cmap(unique.index(name)/8),
-                                       label=name, linestyle='dashed', linewidth=1,
-                                       alpha=0.5)
-                    #line.set_zorder(0)
-                for i, p in enumerate(ax.get_lines()):    # this is the loop to change Labels and colors
-                    if p.get_label() in names[:i]:    # check for Name already exists
-                        p.set_label('_' + p.get_label())       # hide label in auto-legend
+                    plt.axvline(x=date, color=cmap(unique.index(name)/8),
+                                label=name, linestyle='dashed', linewidth=1,
+                                alpha=0.5)
+                # remove extra labels for repeat showers
+                for i, p in enumerate(ax.get_lines()):
+                    if p.get_label() in names[:i]:
+                        p.set_label('_' + p.get_label())
                 plt.legend(loc='upper right')
 
             # make y-axis logscale if specified
             if logscale:
                 ax.set_yscale('log')
-
 
         return fig, ax
 
@@ -945,7 +944,7 @@ class BolideDataFrame(GeoDataFrame):
             pickle.dump(self, f)
 
     # TODO: match on a column other than _id?
-    def augment(self, new_data, time_limit=300, score_limit=5, intersection=False):
+    def augment(self, new_data, time_limit=300, score_limit=5, intersection=False, outer=False):
         """Augment BolideDataFrame with data from another source
 
         Parameters
@@ -959,6 +958,9 @@ class BolideDataFrame(GeoDataFrame):
             possibly be the same.
         intersection : bool
             - True: only keep detections that appear in both sets of data.
+            - False: keep all detections that appear in the first set.
+        outer : bool
+            - True: keep detections from both sets of data.
             - False: keep all detections that appear in the first set.
 
         Returns
@@ -979,8 +981,8 @@ class BolideDataFrame(GeoDataFrame):
             s_deltas = np.abs([delta.total_seconds() for delta in deltas])
             closest = np.argmin(s_deltas)
             if s_deltas[closest] < time_limit:
-                lat_diff = abs(row['latitude']-new_data['latitude'][closest])
-                lon_diff = abs(row['longitude'] % 360 - new_data['longitude'][closest] % 360)
+                lat_diff = abs(row['latitude']-new_data['latitude'].iloc[closest])
+                lon_diff = abs(row['longitude'] % 360 - new_data['longitude'].iloc[closest] % 360)
                 geo_diff = lat_diff+lon_diff
                 s_diff = s_deltas[closest]
                 score = geo_diff * s_diff
@@ -992,6 +994,8 @@ class BolideDataFrame(GeoDataFrame):
         # the other source
         if intersection:
             merged = self.merge(new_data, 'inner', on='_id')
+        elif outer:
+            merged = self.merge(new_data, 'outer', on='_id')
         else:
             merged = self.merge(new_data, 'left', on='_id')
 

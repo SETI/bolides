@@ -31,7 +31,22 @@ def add_boundary(ax, boundary=None, boundary_style={}):
     ax.add_geometries(polygons, crs=crs, **boundary_style)
 
 
-def get_boundary(boundary, collection=True, intersection=False):
+def change_crs(polygons, current, new):
+    single_item = False
+    if type(polygons) is not list:
+        polygons = [polygons]
+        single_item = True
+
+    gdf = GeoDataFrame(geometry=polygons, crs=current)
+    gdf = gdf.to_crs(new)
+
+    if single_item:
+        return gdf.geometry[0]
+    else:
+        return list(gdf.geometry)
+
+
+def get_boundary(boundary, collection=True, intersection=False, crs=None):
     """Get specified boundary polygons.
 
     GOES GLM FOV obtained from a netCDF4 file kindly provided by Katrina Virts
@@ -89,6 +104,11 @@ def get_boundary(boundary, collection=True, intersection=False):
 
     if type(boundary) is not str and not hasattr(boundary, '__iter__'):
         raise ValueError("boundary must be a string or list")
+
+    if crs is not None:
+        polygons = get_boundary(boundary, collection, intersection, crs=None)
+        aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=90, lon_0=0).srs
+        return change_crs(polygons, aeqd, crs)
 
     if boundary == 'goes-w-ni':
         fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
@@ -176,6 +196,7 @@ def aeqd_from_lonlat(polygon):
     gdf = gdf.to_crs(aeqd)
     return gdf.geometry[0]
 
+
 def load_gmn_shp(distance):
     # load Global Meteor Network shapefiles
     aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=90, lon_0=0).srs
@@ -188,7 +209,6 @@ def load_gmn_shp(distance):
     from shapely.ops import unary_union
     polygons = [p.buffer(0) for p in gdf.geometry]
     return unary_union(polygons)
-
 
 
 # get corner points of fy4a FOV and return boundary
