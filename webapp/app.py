@@ -4,6 +4,7 @@ from dash import Dash, html, dcc
 from dash import dash_table
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import pandas as pd
 from bolides import BolideDataFrame
 from bolides import ShowerDataFrame
@@ -46,6 +47,12 @@ projections = ['eckert4', 'GOES-E', 'GOES-W', 'FY4A',
                'van der grinten3', 'van der grinten4',
                'wagner4', 'wagner6', 'wiechel', 'winkel tripel',
                'winkel3']
+ROT_MARKS = [-360, -270, -180, -90, 0, 90, 180, 270, 360]
+LAT_MARKS = [-90, -60, -45, -30, 0, 30, 45, 60, 90]
+ROT_MARKS = dict(zip(ROT_MARKS, [str(m) for m in ROT_MARKS]))
+LAT_MARKS = dict(zip(LAT_MARKS, [str(m) for m in LAT_MARKS]))
+
+pio.templates.default = "plotly_white"
 
 
 def generate_table(dataframe, max_rows=10):
@@ -126,7 +133,7 @@ def get_df_from_filters(source, filter_query=None, start_date=None, end_date=Non
     # sort
     if sort_by is not None and len(sort_by) > 0:
         good_sorts = [col for col in sort_by if col['column_id'] in df.columns]
-        if len(good_sorts)>0:
+        if len(good_sorts) > 0:
             df = df.sort_values([col['column_id'] for col in good_sorts],
                                 ascending=[col['direction'] == 'asc' for col in good_sorts],
                                 inplace=False)
@@ -213,6 +220,14 @@ light curve.
     html.Div(children=["Map projection: ",
                        dcc.Dropdown(projections, value='eckert4', id='projection',
                                     style={'width': '50vw', 'display': 'inline-block'})]),
+    html.Div(children=[
+        html.Div(children=["Globe rotation: ",
+                 dcc.Slider(-360, 360, value=0, id='map-rotation', tooltip={"placement": "bottom"}, marks=ROT_MARKS)],
+                 style={'width': '40vw', 'display': 'inline-block'}),
+        html.Div(children=["Central projection latitude: ",
+                           dcc.Slider(-90, 90, value=0, id='map-lat', tooltip={"placement": "bottom"}, marks=LAT_MARKS)],
+                 style={'width': '40vw', 'display': 'inline-block'})]),
+
 
     dcc.Graph(id='main-map', config={'displaylogo': False}),
 
@@ -388,6 +403,12 @@ def update_scatter(x, y, color_column, log_color, rows, source):
         else:
             fig = px.scatter(df, x=x, y=y, color=color_column)
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+    fig.update_layout(paper_bgcolor='rgba(0, 0, 0, 0)', plot_bgcolor='rgba(0, 0, 0, 0)')
+    fig.update_xaxes(ticks='inside')
+    fig.update_yaxes(ticks='inside')
+    fig.update_xaxes(mirror=True, showline=True, linewidth=1, linecolor='black')
+    fig.update_yaxes(mirror=True, showline=True, linewidth=1, linecolor='black')
+
     return fig
 
 
@@ -418,6 +439,11 @@ def update_hist(var, bins, source, rows, color_column):
         fig.update_traces(xbins=xbins)
         fig.update_layout(barmode='stack')
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, hovermode='x unified')
+    fig.update_layout(paper_bgcolor='rgba(0, 0, 0, 0)', plot_bgcolor='rgba(0, 0, 0, 0)')
+    fig.update_xaxes(ticks='inside')
+    fig.update_yaxes(ticks='inside')
+    fig.update_xaxes(mirror=True, showline=True, linewidth=1, linecolor='black')
+    fig.update_yaxes(mirror=True, showline=True, linewidth=1, linecolor='black')
     return fig
 
 
@@ -485,8 +511,10 @@ Input('log-color', 'value'),
 Input('boundary-checklist', 'value'),
 Input('projection', 'value'),
 Input('main-table', "page_current"),
-Input('main-table', "page_size"))
-def update_map(source, rows, color_column, log_color, boundary_checklist, projection, page_current, page_size):
+Input('main-table', "page_size"),
+Input('map-rotation', "value"),
+Input('map-lat', "value"))
+def update_map(source, rows, color_column, log_color, boundary_checklist, projection, page_current, page_size, rot, lat):
     print('updating map')
     df = get_df_from_idx(source, rows)
     if color_column not in df.columns:
@@ -501,10 +529,11 @@ def update_map(source, rows, color_column, log_color, boundary_checklist, projec
         fig = df.plot_orbits(use_3d=True, num_points=150)._figure
     else:
         fig = df.plot_interactive(projection, boundary_checklist, color_column, logscale)
+        fig.update_geos(projection_rotation=dict(lat=lat, roll=rot))
     fig.update_layout(uirevision=str(source)+str(projection))
-    fig.update_layout(legend={'orientation': 'h', 'y':1})
+    fig.update_layout(legend={'orientation': 'h', 'y': 1})
+    fig.update_layout(paper_bgcolor='rgba(0, 0, 0, 0)', plot_bgcolor='rgba(0, 0, 0, 0)')
     return fig
-
 
 @app.callback(
 Output('lightcurve', 'children'),
@@ -553,6 +582,11 @@ def update_lightcurve(clickData, source, rows, color_column):
     fig = px.line(lcc_df, x='time', y='flux', color='source',
                   title='Light curve for bolide with ID '+_id)
     fig.update_layout(margin={"r": 0, "t": 30, "l": 0, "b": 0}, hovermode='x unified')
+    fig.update_layout(paper_bgcolor='rgba(0, 0, 0, 0)', plot_bgcolor='rgba(0, 0, 0, 0)')
+    fig.update_xaxes(ticks='inside')
+    fig.update_yaxes(ticks='inside')
+    fig.update_xaxes(mirror=True, showline=True, linewidth=1, linecolor='black')
+    fig.update_yaxes(mirror=True, showline=True, linewidth=1, linecolor='black')
 
     bolide_link = "https://neo-bolide.ndc.nasa.gov/#/eventdetail/"+_id
 

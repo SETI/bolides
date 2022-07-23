@@ -11,7 +11,7 @@ body{
   min-height:100vh;
   display:flex; 
   flex-direction:column;
-  font-family:'Computer Modern Serif';
+  font-family:'Arial', sans-serif;
 }
 a{
   margin-right:auto;
@@ -119,18 +119,6 @@ object.header{
 object.footer{
 	height:60px;
 }
-@font-face {
-    font-family: "Garamond";
-    src: url(/GaramondNo8-Regular.ttf) format("truetype");
-  }
-  p.garamond { 
-    font-family: "Garamond", Verdana, Tahoma;
-  }
-.math{
-  font-family:"Garamond",Times;
-  font-size:20px;
-}
-
 
 a {
  color:#07a
@@ -141,4 +129,8 @@ a:visited {
 
 html{
   overflow-y: scroll;
+}
+
+.rc-slider-track {
+  background-color: grey;
 }
