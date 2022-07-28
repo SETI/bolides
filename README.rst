@@ -4,7 +4,7 @@ bolides
 
 **A package to analyze bolide data in Python.**
 
-|pypi-badge| |rtd-badge|
+|pypi-badge| |rtd-badge| |binder-badge|
 
 .. |rtd-badge| image:: https://readthedocs.org/projects/bolides/badge/?version=latest
                :target: https://bolides.readthedocs.io/en/latest
@@ -12,6 +12,9 @@ bolides
 .. |pypi-badge| image:: https://img.shields.io/pypi/v/bolides.svg
                 :target: https://pypi.org/project/bolides/
                 :alt: PyPI link
+.. |binder-badge| image:: https://mybinder.org/badge_logo.svg
+                :target: https://mybinder.org/v2/gh/jcsmithhere/bolides/bdf-implementation?labpath=notebooks%2Ftutorial.ipynb
+                :alt: Binder link
 
 ``bolides`` is a community package primarily designed to work with bolide detections from the Geostationary Lightning Mapper instruments aboard GOES-16 and GOES-17 that are published at `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_. But ``bolides`` can also read bolide data from ZODB database files produced by the GLM bolide detection pipeline, from `US Government sensors <https://cneos.jpl.nasa.gov/fireballs/>`_, and from your own .csv files containing bolide data.
 

@@ -5,5 +5,3 @@ dependencies:
   - python
   - cartopy
   - pip
-  - pip:
-    - -e .
