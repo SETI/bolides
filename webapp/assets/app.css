@@ -134,3 +134,27 @@ html{
 .rc-slider-track {
   background-color: grey;
 }
+
+.rc-slider-dot-active {
+  border-color: grey;
+}
+
+.rc-slider-handle {
+  border-color: grey;
+  border: solid 2px #545454
+}
+
+.rc-slider-handle:hover {
+  border-color: grey;
+  border: solid 2px #545454
+}
+
+.rc-slider-handle-click-focused {
+  border-color: grey;
+  border: solid 2px #545454
+}
+
+.rc-slider-handle-click-focused:focus {
+  border-color: grey;
+  border: solid 2px #545454
+}

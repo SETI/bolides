@@ -72,7 +72,7 @@ def df_from_source(source, filename):
     if source == 'showers':
         df = ShowerDataFrame()
     else:
-        df = BolideDataFrame(source)
+        df = BolideDataFrame(source=source)
 
     for col in df.columns:
         if type(df[col][0]) in [list, dict]:
@@ -83,7 +83,8 @@ def df_from_source(source, filename):
 
 def get_df(source):
     import os
-    source = source_dict[source]
+    if source != 'showers':
+        source = source_dict[source]
     filename = source+'_'+datetime.datetime.today().strftime('%Y%m%d')+'.csv'
 
     if os.path.isfile(filename):
@@ -106,9 +107,11 @@ def get_df(source):
             df = df.drop(col, axis=1)
     return df
 
+SHOWER_OPTIONS = get_df('showers')['shower name'].unique()
 
 def get_df_from_filters(source, filter_query=None, start_date=None, end_date=None,
-                        filter_fov=[], boundary_checklist=[], sort_by=None):
+                        filter_fov=[], boundary_checklist=[], sort_by=None,
+                        shower=None, padding=None, shower_exclude=[], observation=[]):
     if source is None:
         return pd.DataFrame({})
 
@@ -135,8 +138,8 @@ def get_df_from_filters(source, filter_query=None, start_date=None, end_date=Non
         good_sorts = [col for col in sort_by if col['column_id'] in df.columns]
         if len(good_sorts) > 0:
             df = df.sort_values([col['column_id'] for col in good_sorts],
-                                ascending=[col['direction'] == 'asc' for col in good_sorts],
-                                inplace=False)
+                                 ascending=[col['direction'] == 'asc' for col in good_sorts],
+                                 inplace=False)
 
     if source_dict[source] == 'showers':
         df.__class__ = ShowerDataFrame
@@ -147,6 +150,14 @@ def get_df_from_filters(source, filter_query=None, start_date=None, end_date=Non
         if len(boundary_checklist) > 0 and 'Filter by FOV' in filter_fov:
             intersection = "Intersection" in filter_fov
             df = df.filter_boundary(boundary_checklist, intersection=intersection)
+        sdf = get_df('showers')
+        if shower is not None and padding is not None and len(shower)>0:
+            exclude = len(shower_exclude)>0
+            df = df.filter_shower(shower=shower, padding=padding, sdf=sdf, exclude=exclude)
+        sensors = [s for s in observation if s != 'Intersection']
+        if len(sensors)>0:
+            intersection = 'Intersection' in observation
+            df = df.filter_observation(sensors, intersection)
 
         del df['geometry']
         return df
@@ -200,7 +211,7 @@ light curve.
     dcc.Dropdown(list(source_dict.keys()), id='source-select', placeholder='Select a data source'),
 
     dcc.Dropdown(id='color', placeholder='Select a variable to color by',
-                 style={'width': '50vw', 'display': 'inline-block'}),
+                 style={'width': '50vw', 'display': 'inline-block', 'verticalAlign': 'top'}),
 
     dcc.Checklist(['log color scale'], [], inline=True, id='log-color',
                   style={'display': 'inline-block'}),
@@ -211,6 +222,15 @@ light curve.
              dcc.Input(type='text', id='date-end', placeholder='end date yyyy-mm-dd',
                        style={'display': 'inline-block'}, debounce=True)]),
 
+    html.Div(children=['Meteor shower filter: ',
+             dcc.Dropdown(id='shower', options=SHOWER_OPTIONS, placeholder='Select meteor shower(s)',
+                          style={'width': '50vw', 'display': 'inline-block', 'verticalAlign': 'top'}, multi=True),
+             ' Days around peak(s): ',
+             dcc.Input(type='number', id='shower-padding', value=5,
+                       style={'display': 'inline-block'}),
+             dcc.Checklist(['Exclude'], [], inline=True, id='shower-exclude',
+                           style={'display': 'inline-block'})]),
+
     html.Div(children=['Field-of-view options:  ',
         dcc.Checklist(['goes', 'goes-e', 'goes-w', 'goes-w-ni', 'goes-w-i',
                        'fy4a', 'fy4a-n', 'fy4a-s', 'gmn-25km', 'gmn-70km', 'gmn-100km'],
@@ -219,9 +239,14 @@ light curve.
 
     dcc.Checklist(['Filter by FOV', 'Intersection'], [], id='filter-fov'),
 
+    html.Div(children=['Sensor observation filters:  ',
+        dcc.Checklist(['glm16', 'glm17', 'Intersection'],
+                      [], inline=True, id='observation-checklist',
+                      style={'display': 'inline-block'})]),
+
     html.Div(children=["Map projection: ",
                        dcc.Dropdown(projections, value='eckert4', id='projection',
-                                    style={'width': '50vw', 'display': 'inline-block'})]),
+                                    style={'width': '50vw', 'display': 'inline-block', 'verticalAlign': 'top'})]),
     html.Div(children=[
         html.Div(children=["Globe rotation: ",
                  dcc.Slider(-360, 360, value=0, id='map-rotation', tooltip={"placement": "bottom"}, marks=ROT_MARKS)],
@@ -298,16 +323,22 @@ Input('date-start', 'value'),
 Input('date-end', 'value'),
 Input('filter-fov', 'value'),
 Input('boundary-checklist', 'value'),
-Input('main-table', 'sort_by')
+Input('main-table', 'sort_by'),
+Input('shower', 'value'),
+Input('shower-padding', 'value'),
+Input('shower-exclude', 'value'),
+Input('observation-checklist', 'value')
 )
-def update_data(source, page_current, page_size, filter_query, start_date, end_date, filter_fov, boundary_checklist, sort_by):
+def update_data(source, page_current, page_size, filter_query, start_date, end_date, filter_fov,
+                boundary_checklist, sort_by, shower, padding, shower_exclude, observation):
     print('updating table')
 
     start_date = validate_iso(start_date)
     end_date = validate_iso(end_date)
 
     df = get_df_from_filters(source, filter_query, start_date, end_date,
-                             filter_fov, boundary_checklist, sort_by)
+                             filter_fov, boundary_checklist, sort_by,
+                             shower, padding, shower_exclude, observation)
     page_count = len(df)//page_size + 1
     data = df.iloc[page_current * page_size:(page_current + 1) * page_size].to_dict('records')
     columns = [{"name": i, "id": i, "deletable": True, "selectable": True} for i in df.columns]
@@ -571,7 +602,7 @@ def update_lightcurve(clickData, source, rows, color_column):
 
     df = pd.DataFrame(df).T
     df.to_csv('tmp.csv')
-    bdf = BolideDataFrame('csv', 'tmp.csv')
+    bdf = BolideDataFrame(source='csv', files='tmp.csv')
     bdf.add_website_data()
     lcc = bdf.lightcurves.iloc[0]
     _id = bdf._id.iloc[0]

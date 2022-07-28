@@ -290,7 +290,7 @@ class BolideDataFrame(GeoDataFrame):
 
         return bdf
 
-    def filter_observation(self, sensors):
+    def filter_observation(self, sensors, intersection=False):
         """Filter data to only points observable (in time and space) by a given sensor.
 
         Parameters
@@ -301,6 +301,10 @@ class BolideDataFrame(GeoDataFrame):
             - ``'glm16'``: The Geostationary Lightning Mapper aboard GOES-16.
             - ``'glm17'``: The Geostationary Lightning Mapper aboard GOES-17.
               Note that the biannual yaw flips of GOES-17 are taken into account.
+        
+        intersection: bool
+            If True, filter for bolides observable by all sensors given.
+            If False, filter for bolides observable by any sensors given.
 
         Returns
         -------
@@ -318,7 +322,7 @@ class BolideDataFrame(GeoDataFrame):
         valid_sensors = ['glm16', 'glm17']
 
         indices = []
-        for sensor in sensors:
+        for num, sensor in enumerate(sensors):
             filename = sensor
             if sensor == 'glm16':
                 filename = ROOT_PATH + '/data/glm16_obs.csv'
@@ -341,7 +345,12 @@ class BolideDataFrame(GeoDataFrame):
                 boundary = fov_df.boundary[i]
                 bdfs.append(self.filter_boundary([boundary]).filter_date(start=start, end=end))
             bdf = pd.concat(bdfs)
-            indices += list(bdf.index)
+            if not intersection:
+                indices += list(bdf.index)
+            elif num == 0:
+                indices = list(bdf.index)
+            else:
+                indices = [idx for idx in indices if idx in list(bdf.index)]
 
         # get a list of unique indices, and sort them
         indices = list(set(indices))
@@ -352,7 +361,7 @@ class BolideDataFrame(GeoDataFrame):
         force_bdf_class(filtered)
         return filtered
 
-    def filter_shower(self, shower=None, years=None, padding=1):
+    def filter_shower(self, shower=None, years=None, padding=1, sdf=None, exclude=False):
         """Filter data to only points observable (in time and space) by a given sensor.
 
         Parameters
@@ -364,7 +373,12 @@ class BolideDataFrame(GeoDataFrame):
         years: int or list of int
             The shower years to include. Default is to filter for all occurrences
             of the shower(s) in the BolideDataFrame
-        padding: the number of days to pad around the peak time.
+        padding: int
+            The number of days to pad around the peak time.
+        sdf: ShowerDataFrame
+            Optionally provide a ShowerDataFrame to use for filtering
+        exclude: bool
+            Whether or not to exclude bolides around the given showers. Default is to include.
 
         Returns
         -------
@@ -376,19 +390,23 @@ class BolideDataFrame(GeoDataFrame):
         elif type(years) is int:
             years = [years]
 
-        if hasattr(self, '_showers'):
-            sdf = self._showers
-        else:
-            from . import ShowerDataFrame
-            sdf = ShowerDataFrame()
-            self._showers = sdf
+        if sdf is None:
+            if hasattr(self, '_showers'):
+                sdf = self._showers
+            else:
+                from . import ShowerDataFrame
+                sdf = ShowerDataFrame()
+                self._showers = sdf
 
         dates = sdf.get_dates(shower, years).datetime
         date_padding = timedelta(days=padding)
         date_ranges = [[d-date_padding, d+date_padding] for d in dates]
 
         counts = np.sum(np.array([list(self.datetime.between(d[0], d[1])) for d in date_ranges]), axis=0)
-        good_locs = counts != np.zeros(len(counts))
+        if not exclude:
+            good_locs = counts != np.zeros(len(counts))
+        else:
+            good_locs = counts == np.zeros(len(counts))
         return self[good_locs]
 
     def plot_detections(self, crs=None,

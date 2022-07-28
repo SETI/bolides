@@ -71,7 +71,7 @@ You can also install the code on this branch from TestPyPI using ``pip install -
 Tutorial
 ========
 
-For a usage tutorial, go `here <https://bolides.readthedocs.io/en/latest/tutorials>`_.
+For a usage tutorial, go `here <https://bolides.readthedocs.io/en/latest/tutorials>`_. An interactive version is hosted on `binder <https://mybinder.org/v2/gh/jcsmithhere/bolides/bdf-implementation?labpath=notebooks%2Ftutorial.ipynb>`_.
 
 .. start-after-here
 
