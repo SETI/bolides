@@ -1,0 +1,7 @@
+name: bolides-binder
+channels:
+  - conda-forge
+dependencies:
+  - python
+  - cartopy
+  - pip

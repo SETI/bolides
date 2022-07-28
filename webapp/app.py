@@ -17,7 +17,7 @@ from dash.exceptions import PreventUpdate
 
 server = flask.Flask(__name__)
 app = Dash(__name__, server=server)
-app.title = 'bolide visualizer'
+app.title = 'Bolide visualizer'
 
 source_dict = {'USG data at https://cneos.jpl.nasa.gov/fireballs/': 'usg',
                'GLM data at https://neo-bolide.ndc.nasa.gov/': 'website',
@@ -184,7 +184,9 @@ This is a prototype webapp for interactively visualizing bolide detections from 
 GOES-16 and GOES-17. See [here](https://neo-bolide.ndc.nasa.gov/) for more details.
 
 This webapp uses the [`bolides`](https://bolides.readthedocs.io) Python package as a backend.
-The package is recommended for more thorough data analysis.
+The package is recommended for more thorough data analysis. Source code for this prototype webapp
+is available in the [`bolides` package repository](https://github.com/jcsmithhere/bolides).
+
 The export button above the table will export filtered data to a .csv file that
 can be read by `bolides` or any spreadsheet software.
 
@@ -513,8 +515,9 @@ Input('projection', 'value'),
 Input('main-table', "page_current"),
 Input('main-table', "page_size"),
 Input('map-rotation', "value"),
-Input('map-lat', "value"))
-def update_map(source, rows, color_column, log_color, boundary_checklist, projection, page_current, page_size, rot, lat):
+Input('map-lat', "value"),
+Input('date-start','value'))
+def update_map(source, rows, color_column, log_color, boundary_checklist, projection, page_current, page_size, rot, lat, start_date):
     print('updating map')
     df = get_df_from_idx(source, rows)
     if color_column not in df.columns:
@@ -526,7 +529,12 @@ def update_map(source, rows, color_column, log_color, boundary_checklist, projec
     if source is not None and source_dict[source] == 'showers':
         df = df.iloc[page_current * page_size:(page_current + 1) * page_size]
         df.__class__ = ShowerDataFrame
-        fig = df.plot_orbits(use_3d=True, num_points=150)._figure
+        start_date = validate_iso(start_date)
+        if start_date is None:
+            fig = df.plot_orbits(use_3d=True, num_points=150)._figure
+        else:
+            fig = df.plot_orbits(use_3d=True, num_points=150, date=start_date)._figure
+
     else:
         fig = df.plot_interactive(projection, boundary_checklist, color_column, logscale)
         fig.update_geos(projection_rotation=dict(lat=lat, roll=rot))

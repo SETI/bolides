@@ -49,7 +49,17 @@ class BolideDataFrame(GeoDataFrame):
     rearrange : bool
         Whether or not to rearrange the columns, if coming from a CSV or Pickle.
     """
-    def __init__(self, source='website', files=None, annotate=True, rearrange=False):
+    def __init__(self, *args, **kwargs):
+
+        if 'source' not in kwargs:
+            return super().__init__(*args, **kwargs)
+
+        defaults = {'files': None, 'annotate': True, 'rearrange': False}
+        kwargs = reconcile_input(kwargs, defaults)
+        source = kwargs['source']
+        files = kwargs['files']
+        annotate = kwargs['annotate']
+        rearrange = kwargs['rearrange']
 
         # Initialize differently based on source.
         # Each if statement creates a GeoDataFrame with the EPSG:4326 CRS
@@ -1021,6 +1031,10 @@ class BolideDataFrame(GeoDataFrame):
         result = super().__getitem__(key)
         force_bdf_class(result)
         return result
+
+    @property
+    def _constructor(self):
+        return BolideDataFrame
 
     def _repr_html_(self):
 
