@@ -1,5 +1,6 @@
 import ephem
 from math import degrees
+from PyAstronomy.pyasl import co_refract
 
 
 def get_phase(datetime):
@@ -34,6 +35,16 @@ def get_sun_alt(row):
     sun = ephem.Sun()
     sun.compute(obs)
     return degrees(sun.alt)
+
+
+# TODO: THIS IS INCORRECT AND AN APPROXIMATION
+# NEED TO CHECK APPROXIMATION
+def get_observed_alts(apparent_alts):
+    """Get the observed altitude given an apparent altitude"""
+
+    import numpy as np
+    correction = np.array(co_refract(apparent_alts, [0]*len(apparent_alts), convert_to_observed=False)[0]) - apparent_alts
+    return apparent_alts - correction
 
 
 def sol_lon_to_datetime(lon, year):

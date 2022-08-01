@@ -33,6 +33,8 @@ dependencies = [
     "simplekml",
     "scikit-learn",
     "watermark",
+    "beautifulsoup4",
+    "pyastronomy",
 ]
 
 [project.urls]

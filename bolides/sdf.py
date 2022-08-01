@@ -1,6 +1,7 @@
 import pandas as pd
 import requests
 import numpy as np
+from . import ROOT_PATH
 
 
 class ShowerDataFrame(pd.DataFrame):
@@ -42,7 +43,12 @@ class ShowerDataFrame(pd.DataFrame):
             for col in df.columns:
                 if df[col].dtype == 'O':
                     df[col] = df[col].str.strip()
-        numeric_cols = ['a', 'e', 'peri', 'node', 'inc']
+
+        column_translation = {'inc': 'i', 'Ra': 'ra', 'De': 'dec'}
+        df = df.rename(columns=column_translation)
+        df['source'] = 'iau'
+
+        numeric_cols = ['a', 'e', 'peri', 'node', 'i']
         for col in numeric_cols:
             df[col] = pd.to_numeric(df[col], errors='coerce')
         super().__init__(df)
@@ -72,13 +78,6 @@ class ShowerDataFrame(pd.DataFrame):
         from astropy import units as u
         from poliastro.twobody import Orbit
 
-        sdf = self.dropna(subset=['a', 'e', 'inc', 'node', 'peri'])
-
-        import warnings
-        if use_3d and len(sdf) > 50:
-            warnings.warn('This will plot a lot of orbits and may crash your browser.\n'
-                          'If you are afraid of this happening, please do now use show()')
-
         from datetime import datetime
         dt = datetime.fromisoformat(date)
         from astropy.time import Time
@@ -89,6 +88,7 @@ class ShowerDataFrame(pd.DataFrame):
         from poliastro.plotting.static import StaticOrbitPlotter
 
         from poliastro.frames import Planes
+
         if use_3d:
             plotter = OrbitPlotter3D(plane=Planes.EARTH_ECLIPTIC)
         elif interactive:
@@ -96,26 +96,39 @@ class ShowerDataFrame(pd.DataFrame):
         else:
             plotter = StaticOrbitPlotter(plane=Planes.EARTH_ECLIPTIC)
 
-        plotter._num_points = num_points
-        plotter.set_attractor(Sun)
-
         from warnings import simplefilter
         import erfa
         simplefilter("ignore", erfa.core.ErfaWarning)
+
+        plotter._num_points = num_points
+        plotter.set_attractor(Sun)
+
         _plot_bodies(plotter, epoch=epoch)
 
-        for num, row in sdf.iterrows():
-            a = row['a'] * u.AU
-            ecc = row['e'] * u.one
-            inc = row['inc'] * u.deg
-            raan = row['node'] * u.deg
-            argp = row['peri'] * u.deg
-            nu = 5 * u.deg
-            try:
-                orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu, plane=Planes.EARTH_ECLIPTIC)
-            except ValueError:
-                continue
-            plotter.plot(orb, label=row['shower name'])
+        has_data = all([col in self.columns for col in ['a', 'e', 'i', 'node', 'peri']])
+
+        if has_data:
+            sdf = self.dropna(subset=['a', 'e', 'i', 'node', 'peri'])
+
+            import warnings
+            if use_3d and len(sdf) > 50:
+                warnings.warn('This will plot a lot of orbits and may crash your browser.\n'
+                              'If you are afraid of this happening, please do now use show()')
+
+
+            for num, row in sdf.iterrows():
+                a = row['a'] * u.AU
+                ecc = row['e'] * u.one
+                inc = row['i'] * u.deg
+                raan = row['node'] * u.deg
+                argp = row['peri'] * u.deg
+                nu = 5 * u.deg
+                try:
+                    orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu, plane=Planes.EARTH_ECLIPTIC)
+                except ValueError:
+                    continue
+                plotter.plot(orb, label=row['shower name'])
+
         if use_3d:
             fig = plotter._figure
             fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=900)

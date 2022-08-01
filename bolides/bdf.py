@@ -14,8 +14,9 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from lightkurve import LightCurve, LightCurveCollection
 
-from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT, MPLSTYLE, ROOT_PATH
+from . import API_ENDPOINT_EVENT, MPLSTYLE, ROOT_PATH
 from .utils import make_points, reconcile_input
+from .sources import glm_website, usg, pipeline, gmn
 
 _FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
                'confidenceRating', 'confidence', 'lightcurveStructure',
@@ -37,6 +38,7 @@ class BolideDataFrame(GeoDataFrame):
         - ``'pickle'``: initialize from a pickled GeoDataFrame
         - ``'csv'``: initialize from a .csv file
         - ``'usg'``: initialize from US Government data at cneos.jpl.nasa.gov/fireballs/
+        - ``'gmn'``: initialize from Global Meteor Networ data at globalmeteornetwork.org/data/
     files : str, list
 
         Specifies files to be used depending on source.
@@ -44,6 +46,10 @@ class BolideDataFrame(GeoDataFrame):
         - For ``'pickle'``, specifies the filename of the pickled object.
         - For ``'csv'``, specifies the filename of the csv.
         - For ``'pipeline'``, specifies the filename(s) of the database file(s)
+    date : str, date, datetime
+        Specifies a date when using Global Meteor Network data.
+        str can be either yyyy-mm or yyyy-mm-dd.
+
     annotate : bool
         Whether or not to add additional metadata.
     rearrange : bool
@@ -70,7 +76,7 @@ class BolideDataFrame(GeoDataFrame):
             files = [files]
 
         # input validation
-        valid_sources = ['website', 'usg', 'pickle', 'csv', 'pipeline']
+        valid_sources = ['website', 'usg', 'pickle', 'gmn', 'csv', 'pipeline']
         if source not in valid_sources:
             raise ValueError("Source \""+str(source)+"\" is unsupported. Please use one of "+str(valid_sources))
 
@@ -86,12 +92,18 @@ class BolideDataFrame(GeoDataFrame):
             warn("More than one file given for source \""+source+"\". Only the first one will be used.")
 
         if source == 'website':
-            init_gdf = get_df_from_website()
+            init_gdf = glm_website()
             init_gdf['source'] = 'website'
 
         elif source == 'usg':
-            init_gdf = get_df_from_usg()
+            init_gdf = usg()
             init_gdf['source'] = 'usg'
+
+        elif source == 'gmn':
+            if 'date' not in kwargs:
+                raise ValueError('Must specify a yyyy-mm or yyyy-mm-dd date to use GMN data')
+            init_gdf = gmn(kwargs['date'], loc_mode = 'begin')
+            init_gdf['source'] = 'gmn'
 
         elif source == 'pickle':
             with open(files[0], 'rb') as pkl:
@@ -102,13 +114,14 @@ class BolideDataFrame(GeoDataFrame):
                                    parse_dates=['datetime'],
                                    keep_default_na=False,
                                    na_values='')
+            # init_gdf = init_gdf.convert_dtypes()
             lats = init_gdf['latitude']
             lons = init_gdf['longitude']
             points = make_points(lons, lats)
             init_gdf = GeoDataFrame(init_gdf, geometry=points, crs="EPSG:4326")
 
         elif source == 'pipeline':
-            init_gdf = get_df_from_pipeline(files)
+            init_gdf = pipeline()
             init_gdf['source'] = 'pipeline'
 
         # rearrange columns, respecting original order if csv or pickle
@@ -128,7 +141,7 @@ class BolideDataFrame(GeoDataFrame):
 
     def annotate(bdf):
         """Add metadata to bolide detections"""
-        from .astro_utils import get_phase, get_solarhour, get_sun_alt
+        from .astro_utils import get_phase, get_solarhour, get_sun_alt, get_observed_alts
 
         # lunar phase
         bdf['phase'] = [get_phase(dt) for dt in bdf['datetime']]
@@ -138,6 +151,8 @@ class BolideDataFrame(GeoDataFrame):
         bdf['solarhour'] = [get_solarhour(data[0], data[1]) for data in zip(bdf['datetime'], bdf['longitude'])]
         # solar altitude
         bdf['sun_alt'] = [get_sun_alt(row) for _, row in bdf.iterrows()]
+        # observed solar altitude
+        bdf['sun_alt_obs'] = get_observed_alts(bdf.sun_alt)
 
         bdf['date_retrieved'] = datetime.now()
 
@@ -301,7 +316,7 @@ class BolideDataFrame(GeoDataFrame):
             - ``'glm16'``: The Geostationary Lightning Mapper aboard GOES-16.
             - ``'glm17'``: The Geostationary Lightning Mapper aboard GOES-17.
               Note that the biannual yaw flips of GOES-17 are taken into account.
-        
+
         intersection: bool
             If True, filter for bolides observable by all sensors given.
             If False, filter for bolides observable by any sensors given.
@@ -524,9 +539,7 @@ class BolideDataFrame(GeoDataFrame):
 
         return fig, ax
 
-    def plot_interactive(self, projection="eckert4",
-                         boundary=None, color=None, logscale=False,
-                         **kwargs):
+    def plot_interactive(self, *args, **kwargs):
         """Plot an interactive map of bolide detections.
 
         Parameters
@@ -586,104 +599,8 @@ class BolideDataFrame(GeoDataFrame):
         fig : `~matplotlib.pyplot.figure`
         ax : `~cartopy.mpl.geoaxes.GeoAxesSubplot`
         """
-        import plotly.express as px
-        import plotly.graph_objects as go
-        df = self.copy()
-        hover_columns = ['datetime']
-        if len(df) == 0:
-            df = pd.DataFrame({'datetime': [], 'longitude': [], 'latitude': []})
-        hover_columns = ['datetime']
-        too_long = ['otherInformation', 'reason', 'description', 'otherDetectingSources', 'status',
-                    'lastModifiedBy', 'enteredBy', 'submittedBy', 'publishedBy', 'platform', 'rejectedBy',
-                    'rejectedDate', 'date_retrieved', '__v']
-
-        import numbers
-        if len(df) > 0:
-            for col in df.columns:
-                if type(df[col].iloc[0]) in [list, dict]:
-                    continue
-                if all([isinstance(x, numbers.Number) for x in df[col]]) and (col not in too_long):
-                    hover_columns.append(col)
-                elif len(df[col].unique()) < 20 and (col not in too_long):
-                    hover_columns.append(col)
-            for col in hover_columns:
-                if col not in ['latitude', 'longitude', color]:
-                    if all([isinstance(i, numbers.Number) for i in df[col]]):
-                        df[col] = ['%g' % num for num in df[col]]
-                    else:
-                        df[col] = df[col].fillna('')
-
-        defaults = {'hover_data': hover_columns}
-        kwargs = reconcile_input(kwargs, defaults)
-
-        projection = projection.lower()
-        proj_name = projection
-        if projection in ['goes-e', 'goes-w', 'fy4a']:
-            proj_name = 'satellite'
-        if logscale and all([isinstance(x, numbers.Number) for x in df[color]]):
-            fig = px.scatter_geo(df, lat="latitude", lon="longitude",
-                                 color=np.log(df[color]),
-                                 projection=proj_name, **kwargs)
-            fig.update_layout(coloraxis_colorbar={'title': 'log('+color+')'})
-        else:
-            fig = px.scatter_geo(df, lat="latitude", lon="longitude",
-                                 color=color,
-                                 projection=proj_name,
-                                 **kwargs)
-        from .constants import GLM_STEREO_MIDPOINT, GOES_E_LON, GOES_W_LON, FY4A_LON
-        if len(df) > 0 and df['source'].iloc[0] == 'website':
-            fig.update_geos(projection_rotation={'lon': GLM_STEREO_MIDPOINT})
-        if projection in ['satellite', 'goes-e', 'goes-w', 'fy4a']:
-            distance = 42164/6378  # geostationary orbit distance
-            rotation = 0
-            if projection == 'goes-e':
-                rotation = GOES_E_LON
-            elif projection == 'goes-w':
-                rotation = GOES_W_LON
-            elif projection == 'fy4a':
-                rotation = FY4A_LON
-            fig.update_geos(projection={'type': 'satellite', 'distance': distance},
-                            projection_rotation={'lon': rotation})
-
-        fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=900)
-        fig.update_geos(landcolor="White", lataxis_showgrid=True, lonaxis_showgrid=True)
-        fig.update_traces(marker=dict(size=8))
-        from bolides.fov_utils import get_boundary
-        import pyproj
-        import shapely
-        from geopandas import GeoDataFrame
-        if boundary is None:
-            boundary = []
-        if type(boundary) is str:
-            boundary = [boundary]
-        polygons = get_boundary(boundary)
-        if type(polygons) is not list:
-            polygons = [polygons]
-        aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=90, lon_0=0).srs
-        gdf = GeoDataFrame(geometry=polygons, crs=aeqd)
-        gdf = gdf.to_crs('epsg:4326')
-        polygons = gdf.geometry
-        start_color = len(fig.data)
-        for num, polygon in enumerate(polygons):
-            if type(polygon) is shapely.geometry.MultiPolygon:
-                polygon_group = list(polygon)
-            else:
-                polygon_group = [polygon]
-
-            from plotly.colors import qualitative
-            for i, p in enumerate(polygon_group):
-                lons, lats = p.exterior.coords.xy
-                lons = np.array(lons)
-                lats = np.array(lats)
-                if boundary[num] in ['goes', 'goes-w', 'goes-w-i', 'goes-w-ni']:
-                    lons = lons - (lons > 50) * 360
-                fig.add_trace(go.Scattergeo(mode="lines", lon=lons, lat=lats,
-                                            name=boundary[num], opacity=0.6,
-                                            line=dict(color=qualitative.Plotly[start_color+num]),
-                                            legendgroup=str(num),
-                                            showlegend=(i == 0)))
-
-        return fig
+        from .plotting import plot_interactive
+        return plot_interactive(self, *args, **kwargs)
 
     def plot_density(self, crs=None,
                      bandwidth=5, coastlines=True, style=MPLSTYLE,
@@ -1074,121 +991,6 @@ class BolideDataFrame(GeoDataFrame):
                 with open(ROOT_PATH + '/metadata/' + source + '.html', 'r') as f:
                     attribution += f.read()
         return attribution + df_rep
-
-
-def get_df_from_website():
-
-    # load data from website
-    json = requests.get(API_ENDPOINT_EVENTLIST).json()
-
-    # create DataFrame using JSON data
-    df = pd.DataFrame(json['data'])
-    df["datetime"] = df["datetime"].astype("datetime64")
-
-    # add bolide energy data
-    energy_g16 = []
-    energy_g17 = []
-    for ats in df.attachments:
-        e_g16 = 0
-        e_g17 = 0
-        for at in ats:
-            platform = at['platformId']
-            energy = at['energy']
-            if platform == 'G16':
-                e_g16 += energy
-            if platform == 'G17':
-                e_g17 += energy
-        if e_g16 == 0:
-            e_g16 = np.nan
-        if e_g17 == 0:
-            e_g17 = np.nan
-        energy_g16.append(e_g16)
-        energy_g17.append(e_g17)
-    df['energy_g16'] = energy_g16
-    df['energy_g17'] = energy_g17
-
-    # add bolide brightness data
-    brightness_cat_g16 = []
-    brightness_g16 = []
-    brightness_cat_g17 = []
-    brightness_g17 = []
-    val_cols = {'GLM-16': brightness_g16, 'GLM-17': brightness_g17}
-    cat_cols = {'GLM-16': brightness_cat_g16, 'GLM-17': brightness_cat_g17}
-    for brightness in df.brightness:
-        for sat in ['GLM-16', 'GLM-17']:
-            if sat in brightness:
-                cat_cols[sat].append(brightness[sat]['category'])
-                val_cols[sat].append(brightness[sat]['value'])
-            else:
-                cat_cols[sat].append("")
-                val_cols[sat].append(np.nan)
-    df['brightness_cat_g16'] = brightness_cat_g16
-    df['brightness_g16'] = brightness_g16
-    df['brightness_cat_g17'] = brightness_cat_g17
-    df['brightness_g17'] = brightness_g17
-    del df['brightness']
-
-    # create a list to be used as a geometry column
-    lats = df['latitude']
-    lons = df['longitude']
-    points = make_points(lons, lats)
-
-    # create GeoDataFrame using DataFrame and the geometry.
-    # EPSG:4326 because data is in lon-lat format.
-    gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
-
-    return gdf
-
-
-def get_df_from_usg():
-
-    # load data from website
-    json = requests.get('https://ssd-api.jpl.nasa.gov/fireball.api').json()
-    data = json['data']
-    cols = json['fields']
-
-    # create DataFrame
-    df = pd.DataFrame(data, columns=cols)
-    df['latitude'] = df['lat'].astype(float) * ((df['lat-dir'] == 'N') * 2 - 1)
-    df['longitude'] = df['lon'].astype(float) * ((df['lon-dir'] == 'E') * 2 - 1)
-    del df['lat'], df['lon'], df['lat-dir'], df['lon-dir']
-    df['datetime'] = [datetime.fromisoformat(date) for date in df['date']]
-    del df['date']
-    numeric_cols = ['energy', 'impact-e', 'alt', 'vel']
-    for col in numeric_cols:
-        df[col] = df[col].astype(float)
-
-    first_cols = ['datetime', 'longitude', 'latitude', 'source', 'energy',
-                  'impact-e', 'alt', 'vel', 'source']
-    first_cols = [col for col in first_cols if col in df.columns]
-    other_cols = [col for col in df.columns if col not in first_cols]
-    df = df[first_cols + other_cols]
-
-    # create a list to be used as a geometry column
-    lats = df['latitude']
-    lons = df['longitude']
-    points = make_points(lons, lats)
-
-    gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
-
-    return gdf
-
-
-def get_df_from_pipeline(files, min_confidence=0):
-
-    from .pipeline_utils import dict_from_zodb
-    dict_of_lists = dict_from_zodb(files=files, min_confidence=min_confidence)
-
-    # create Point objects
-    lon = dict_of_lists['avgLon']
-    lat = dict_of_lists['avgLat']
-    points = make_points(lon, lat)
-    bdf = GeoDataFrame(dict_of_lists, geometry=points, crs="EPSG:4326")
-    column_translation = {'avgLon': 'longitude', 'avgLat': 'latitude', 'bolideTime': 'datetime',
-                          'timeDuration': 'duration', 'goesSatellite': 'detectedBy'}
-    bdf = bdf.rename(columns=column_translation)
-
-    return bdf
 
 
 def force_bdf_class(bdf):

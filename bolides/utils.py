@@ -22,6 +22,13 @@ def reconcile_input(user_input, defaults):
     return user_input
 
 
+def str_to_list(string):
+    string = string.strip('[]')
+    if string == '':
+        return []
+    return string.split(', ')
+
+
 def youtube_photometry(video):
     """Returns a LightCurve object containing the total grayscale intensity
     of a youtube video over time."""
