@@ -52,7 +52,8 @@ def vel_to_radec(dt, vx, vy, vz):
     from astropy.time import Time
 
     time = Time(dt)
-    c = SkyCoord(x=vx, y=vy, z=vz, representation_type='cartesian', frame='itrs', obstime=time)
+    # input negatives of coordinates because we want the direction they're coming from
+    c = SkyCoord(x=-vx, y=-vy, z=-vz, representation_type='cartesian', frame='itrs', obstime=time)
     radec = c.transform_to(ICRS)
     return radec.ra.value, radec.dec.value
 

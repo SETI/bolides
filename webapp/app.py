@@ -59,13 +59,13 @@ projections = ['airy', 'aitoff', 'albers', 'albers usa', 'august',
                'nell hammer', 'nicolosi', 'orthographic ',
                'patterson', 'peirce quincuncial', 'polyconic',
                'rectangular polyconic', 'robinson', 'satellite', 'sinu mollweide',
-               'sinusoidal', 'stereographic', 'times',
+               'sinusoidal', 'stereographic ', 'times',
                'transverse mercator', 'van der grinten', 'van der grinten2',
                'van der grinten3', 'van der grinten4',
                'wagner4', 'wagner6', 'wiechel', 'winkel tripel',
                'winkel3']
 earth_projections = ['eckert4', 'GOES-E', 'GOES-W', 'FY4A'] + projections
-radiant_projections = ['orthographic'] + projections
+radiant_projections = ['stereographic', 'orthographic'] + projections
 
 from bolides import ROOT_PATH
 import os
@@ -307,7 +307,7 @@ light curve.
                                dcc.Dropdown(['equator', 'ecliptic'], value='equator', id='radiant-plane',
                                             style={'width': '50vw', 'display': 'inline-block', 'verticalAlign': 'top'})]),
             html.Div(children=["Map projection: ",
-                               dcc.Dropdown(radiant_projections, value='orthographic', id='radiant-projection',
+                               dcc.Dropdown(radiant_projections, value='stereographic', id='radiant-projection',
                                             style={'width': '50vw', 'display': 'inline-block', 'verticalAlign': 'top'})]),
             html.Div(children=[
                 html.Div(children=["Sphere rotation: ",
@@ -676,7 +676,7 @@ def update_radiants(source, gmn_date, rows, color_column, log_color, boundary_ch
 
     logscale = 'log color scale' in log_color
     if projection is None:
-        projection = 'eckert4'
+        projection = 'stereographic'
     projection = projection.strip()
         
     df.__class__ = BolideDataFrame

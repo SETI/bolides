@@ -49,7 +49,7 @@ function otherTabObserver(){
     var observer = new MutationObserver(function (mutations, me) {
       var canvas = document.getElementById('orbit-map');
       if (canvas) {
-        plotorbits();
+        viz = plotorbits();
         me.disconnect(); // stop observing
         orbitTabObserver();
         return;
@@ -77,7 +77,7 @@ const viz = new Spacekit.Simulation(document.getElementById('orbit-map'), {
     showStats: false,
   },
 });
-console.log('viz created')
+console.log('viz created');
 
 // Create a skybox using NASA TYCHO artwork.
 //const skybox = viz.createStars();
@@ -146,11 +146,12 @@ for(const element of data){
         });
     }
     catch (error) {
-        console.error(error)
+        console.error(error);
     }
-    idx = idx+1
+    idx = idx+1;
 };
 
-console.log('orbits plotted')
+console.log('orbits plotted');
+return viz;
 
 }
