@@ -34,7 +34,6 @@ dependencies = [
     "scikit-learn",
     "watermark",
     "beautifulsoup4",
-    "pyastronomy",
 ]
 
 [project.urls]

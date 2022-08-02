@@ -833,7 +833,9 @@ State('tabs', 'value')
 def change_tab(source, current_tab):
     if source is None:
         pass
-    elif source_dict[source] in ['usg', 'glm']  and current_tab in ['tab-2', 'tab-3']:
+    elif source_dict[source] == 'website' and current_tab in ['tab-2', 'tab-3']:
+        return 'tab-1'
+    elif source_dict[source] == 'usg' and current_tab == 'tab-2':
         return 'tab-1'
     elif source_dict[source] == 'showers' and current_tab == 'tab-1':
         return 'tab-2'

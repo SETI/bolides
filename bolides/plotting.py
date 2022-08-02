@@ -3,6 +3,7 @@ import numpy as np
 from .utils import reconcile_input
 from . import ROOT_PATH
 
+
 def plot_interactive(df, mode='earth', projection="eckert4",
                      boundary=None, color=None, logscale=False,
                      culture='western', reference_plane='ecliptic',
@@ -39,7 +40,6 @@ def plot_interactive(df, mode='earth', projection="eckert4",
         df['ra_neg'] = -df['ra']
         loc_cols = ['dec', 'ra_neg']
 
-
     too_long = ['otherInformation', 'reason', 'description', 'otherDetectingSources', 'status',
                 'lastModifiedBy', 'enteredBy', 'submittedBy', 'publishedBy', 'platform', 'rejectedBy',
                 'rejectedDate', 'date_retrieved', '__v']
@@ -67,7 +67,7 @@ def plot_interactive(df, mode='earth', projection="eckert4",
 
     hover_columns = [col for col in hover_columns if not col.endswith('_sd')]
 
-    if len(hover_columns)>30:
+    if len(hover_columns) > 30:
         hover_columns = ['datetime', 'longitude', 'latitude', 'ra', 'dec', 'lon_ecliptic', 'lat_ecliptic']
     hover_columns = [col for col in hover_columns if col in df.columns]
 
@@ -124,7 +124,6 @@ def plot_interactive(df, mode='earth', projection="eckert4",
         gdf = GeoDataFrame(geometry=polygons, crs=aeqd)
         gdf = gdf.to_crs('epsg:4326')
         polygons = gdf.geometry
-        start_color = len(fig.data)
         for num, polygon in enumerate(polygons):
             if type(polygon) is shapely.geometry.MultiPolygon:
                 polygon_group = list(polygon)
@@ -174,6 +173,6 @@ def plot_interactive(df, mode='earth', projection="eckert4",
                 fig.add_trace(go.Scattergeo(mode="lines",
                                             lon=data_x[n*2:(n+1)*2],
                                             lat=data_y[n*2:(n+1)*2],
-                                            line=dict(color='White'), showlegend = False))
+                                            line=dict(color='White'), showlegend=False))
 
     return fig

@@ -77,7 +77,7 @@ def glm_website():
 def usg():
 
     # load data from website
-    json = download('https://ssd-api.jpl.nasa.gov/fireball.api', json=True)
+    json = download('https://ssd-api.jpl.nasa.gov/fireball.api?vel-comp=true', json=True)
     data = json['data']
     cols = json['fields']
 
@@ -88,9 +88,20 @@ def usg():
     del df['lat'], df['lon'], df['lat-dir'], df['lon-dir']
     df['datetime'] = [datetime.fromisoformat(date) for date in df['date']]
     del df['date']
-    numeric_cols = ['energy', 'impact-e', 'alt', 'vel']
+    numeric_cols = ['energy', 'impact-e', 'alt', 'vel', 'vx', 'vy', 'vz']
     for col in numeric_cols:
         df[col] = df[col].astype(float)
+
+    # compute ra and dec from velocity components
+    df['ra'] = np.nan
+    df['dec'] = np.nan
+    from .astro_utils import vel_to_radec
+    # ignore SettingWithCopyWarning
+    with pd.option_context('mode.chained_assignment', None):
+        for num, row in df.dropna(subset=['vx', 'vy', 'vz']).iterrows():
+            ra, dec = vel_to_radec(row['datetime'], row['vx'], row['vy'], row['vz'])
+            df['ra'][num] = ra
+            df['dec'][num] = dec
 
     first_cols = ['datetime', 'longitude', 'latitude', 'source', 'energy',
                   'impact-e', 'alt', 'vel', 'source']
@@ -186,10 +197,10 @@ def gmn(date, loc_mode='begin'):
                           'DECgeo_sd': 'dec_sd'}
     df = df.rename(columns=column_translation)
 
-    #non_numeric = ['source', '#Uniquetrajectory', 'iau_code', 'Begin', 'Endin', 'Participating']
-    #dates = ['datetime', 'date-retrieved']
-    #numeric_cols = [col for col in df.columns if col not in non_numeric+dates]
-    #for col in numeric_cols:
+    # non_numeric = ['source', '#Uniquetrajectory', 'iau_code', 'Begin', 'Endin', 'Participating']
+    # dates = ['datetime', 'date-retrieved']
+    # numeric_cols = [col for col in df.columns if col not in non_numeric+dates]
+    # for col in numeric_cols:
     #    df[col] = pd.to_numeric(df[col], errors='coerce')
 
     df = df.convert_dtypes()
@@ -198,7 +209,6 @@ def gmn(date, loc_mode='begin'):
     lats = df['latitude']
     lons = df['longitude']
     points = make_points(lons, lats)
-
 
     gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
 

@@ -1,6 +1,5 @@
 import ephem
 from math import degrees
-from PyAstronomy.pyasl import co_refract
 
 
 def get_phase(datetime):
@@ -42,9 +41,20 @@ def get_sun_alt(row):
 def get_observed_alts(apparent_alts):
     """Get the observed altitude given an apparent altitude"""
 
-    import numpy as np
-    correction = np.array(co_refract(apparent_alts, [0]*len(apparent_alts), convert_to_observed=False)[0]) - apparent_alts
-    return apparent_alts - correction
+    # from astropy.coordinates.builtin_frames.itrs_observed_transforms import add_refraction
+    for alt in apparent_alts:
+        pass
+    return apparent_alts  # apparent_alts - correction
+
+
+def vel_to_radec(dt, vx, vy, vz):
+    from astropy.coordinates import ICRS, SkyCoord
+    from astropy.time import Time
+
+    time = Time(dt)
+    c = SkyCoord(x=vx, y=vy, z=vz, representation_type='cartesian', frame='itrs', obstime=time)
+    radec = c.transform_to(ICRS)
+    return radec.ra.value, radec.dec.value
 
 
 def sol_lon_to_datetime(lon, year):
