@@ -47,7 +47,8 @@ def get_observed_alts(apparent_alts):
     return apparent_alts  # apparent_alts - correction
 
 
-def vel_to_radec(dt, vx, vy, vz):
+def vel_to_radiant(dt, vx, vy, vz):
+    """Input velocity in ITRS frame, output (uncorrected) radiant in ICRS frame"""
     from astropy.coordinates import ICRS, SkyCoord
     from astropy.time import Time
 
@@ -56,6 +57,56 @@ def vel_to_radec(dt, vx, vy, vz):
     c = SkyCoord(x=-vx, y=-vy, z=-vz, representation_type='cartesian', frame='itrs', obstime=time)
     radec = c.transform_to(ICRS)
     return radec.ra.value, radec.dec.value
+
+
+def geocentric_to_ecliptic(ra, dec):
+    from astropy.coordinates import SkyCoord
+    c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
+    lat = c.barycentrictrueecliptic.lat.value
+    lon = c.barycentrictrueecliptic.lon.value
+    return lat, lon
+
+
+def calc_usg_orbit(dt, v, vx, vy, vz, lat, lon, alt, wmpl_path='python'):
+    """Input velocity in ITRS frame, output orbital elements"""
+    from subprocess import Popen,  PIPE
+    from astropy.coordinates import ICRS, SkyCoord
+    from astropy.time import Time
+
+    time = Time(dt)
+    # input negatives of coordinates because we want the direction they're coming from
+    c = SkyCoord(x=-vx, y=-vy, z=-vz, representation_type='cartesian', frame='itrs', obstime=time)
+    radec = c.transform_to(ICRS)
+    ra = radec.ra.value
+    dec = radec.dec.value
+    import subprocess
+    datestr = dt.strftime('%Y%m%d-%H%M%S.0')
+    args = f'-r {ra} -d {dec} -v {v} -t {datestr} -a {lat} -o {lon} -e {alt} -s'.split()
+    process = Popen([wmpl_path, "-m", "wmpl.Trajectory.Orbit"]+args, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = process.communicate()
+    stdout = stdout.decode()
+    contains_data = stdout.__contains__('Orbit:')
+    keys = ['ra', 'dec', 'LaSun', 'a', 'e', 'i', 'peri', 'node', 'Pi', 'b', 'q', 'f', 'M', 'Q', 'n', 'T']
+    import numpy as np
+    if not contains_data:
+        data = [np.nan]*len(keys)
+    else:
+        lines = stdout.split('\n')
+        new_radiant_line = np.argmax([line.__contains__('Radiant (geocentric, J2000)') for line in lines])
+        ra = float(lines[new_radiant_line+1].split()[2].strip('+'))
+        dec = float(lines[new_radiant_line+2].split()[2].strip('+'))
+        data = [ra, dec]
+
+        orbit_line = np.argmax([line.__contains__('Orbit:') for line in lines])
+        for i in range(14):
+            if i == 0:
+                idx = 3
+            else:
+                idx = 2
+            data.append(float(lines[orbit_line+1+i].split()[idx]))
+    data_dict = dict(zip(keys, data))
+    return data_dict
+    
 
 
 def sol_lon_to_datetime(lon, year):

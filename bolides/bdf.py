@@ -76,7 +76,7 @@ class BolideDataFrame(GeoDataFrame):
             files = [files]
 
         # input validation
-        valid_sources = ['website', 'usg', 'pickle', 'gmn', 'csv', 'pipeline']
+        valid_sources = ['website', 'usg', 'pickle', 'gmn', 'csv', 'pipeline', 'usg-orbits', 'remote']
         if source not in valid_sources:
             raise ValueError("Source \""+str(source)+"\" is unsupported. Please use one of "+str(valid_sources))
 
@@ -102,7 +102,7 @@ class BolideDataFrame(GeoDataFrame):
         elif source == 'gmn':
             if 'date' not in kwargs:
                 raise ValueError('Must specify a yyyy-mm or yyyy-mm-dd date to use GMN data')
-            init_gdf = gmn(kwargs['date'], loc_mode = 'begin')
+            init_gdf = gmn(kwargs['date'], loc_mode='begin')
             init_gdf['source'] = 'gmn'
 
         elif source == 'pickle':
@@ -120,8 +120,28 @@ class BolideDataFrame(GeoDataFrame):
             points = make_points(lons, lats)
             init_gdf = GeoDataFrame(init_gdf, geometry=points, crs="EPSG:4326")
 
+        elif source == 'remote':
+            from io import StringIO
+            url = kwargs['url']
+            from .sources import download
+            data = download(url)
+            buf = StringIO(data)
+            init_gdf = pd.read_csv(buf, parse_dates=['datetime'], keep_default_na=False, na_values='')
+            lats = init_gdf['latitude']
+            lons = init_gdf['longitude']
+            points = make_points(lons, lats)
+            init_gdf = GeoDataFrame(init_gdf, geometry=points, crs="EPSG:4326")
+
+        elif source == 'usg-orbits':
+            init_gdf = BolideDataFrame(source='remote', url='https://aozerov.com/data/usg-orbits.csv')
+
         elif source == 'pipeline':
-            init_gdf = pipeline()
+            if 'min_confidence' in kwargs:
+                min_confidence = kwargs['min_confidence']
+            else:
+                min_confidence = 0
+            init_gdf = pipeline(files=files, min_confidence=min_confidence)
+
             init_gdf['source'] = 'pipeline'
 
         # rearrange columns, respecting original order if csv or pickle

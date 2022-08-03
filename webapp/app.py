@@ -39,7 +39,8 @@ tab_selected_style = {
 source_dict = {'USG data at cneos.jpl.nasa.gov/fireballs/': 'usg',
                'GLM data at neo-bolide.ndc.nasa.gov/': 'website',
                'Global Meteor Network data at globalmeteornetwork.org/data/': 'gmn',
-               'Meteor shower data at www.ta3.sk/IAUC22DB/MDC2007/': 'showers'}
+               'Meteor shower data at www.ta3.sk/IAUC22DB/MDC2007/': 'showers',
+               'USG data with computed orbits': 'usg-orbits'}
 projections = ['airy', 'aitoff', 'albers', 'albers usa', 'august',
                'azimuthal equal area', 'azimuthal equidistant', 'baker',
                'bertin1953', 'boggs', 'bonne', 'bottomley', 'bromley',
@@ -688,7 +689,7 @@ def update_radiants(source, gmn_date, rows, color_column, log_color, boundary_ch
     df = df.iloc[page_current * page_size:(page_current + 1) * page_size]
 
     fig.update_layout(uirevision=str(source)+str(projection))
-    fig.update_layout(legend={'orientation': 'h', 'y': 1})
+    #fig.update_layout(legend={'orientation': 'h', 'y': 1})
     fig.update_layout(paper_bgcolor='rgba(0, 0, 0, 0)', plot_bgcolor='rgba(0, 0, 0, 0)')
     return fig
 

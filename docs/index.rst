@@ -5,8 +5,6 @@
 .. include:: ../README.rst
    :end-before: end-before-here
 
-**Historical Note**
-
 .. include:: ../README.rst
    :start-after: start-after-here
 

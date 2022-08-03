@@ -95,11 +95,11 @@ def usg():
     # compute ra and dec from velocity components
     df['ra'] = np.nan
     df['dec'] = np.nan
-    from .astro_utils import vel_to_radec
+    from .astro_utils import vel_to_radiant
     # ignore SettingWithCopyWarning
     with pd.option_context('mode.chained_assignment', None):
         for num, row in df.dropna(subset=['vx', 'vy', 'vz']).iterrows():
-            ra, dec = vel_to_radec(row['datetime'], row['vx'], row['vy'], row['vz'])
+            ra, dec = vel_to_radiant(row['datetime'], row['vx'], row['vy'], row['vz'])
             df['ra'][num] = ra
             df['dec'][num] = dec
 
