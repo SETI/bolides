@@ -42,7 +42,7 @@ def plot_interactive(df, mode='earth', projection="eckert4",
 
     too_long = ['otherInformation', 'reason', 'description', 'otherDetectingSources', 'status',
                 'lastModifiedBy', 'enteredBy', 'submittedBy', 'publishedBy', 'platform', 'rejectedBy',
-                'rejectedDate', 'date_retrieved', '__v']
+                'rejectedDate', 'date_retrieved', '__v', 'Remarks', 'References']
     if color not in df.columns:
         color = None
 
@@ -147,10 +147,11 @@ def plot_interactive(df, mode='earth', projection="eckert4",
 
         # convert strings to lists
         from .utils import str_to_list
-        for col in constellations.columns:
+        for col in ['ra', 'dec']:
             constellations[col] = [str_to_list(x) for x in constellations[col]]
 
         for num, row in constellations.iterrows():
+            name = row['name']
             data_x = np.array(row['ra']).astype(float)
             data_y = np.array(row['dec']).astype(float)
             if reference_plane == 'ecliptic':
@@ -170,7 +171,8 @@ def plot_interactive(df, mode='earth', projection="eckert4",
                 data_y = np.array(lats)
             data_x = -data_x
             for n in range(int(len(row['ra'])/2)):
-                fig.add_trace(go.Scattergeo(mode="lines",
+                fig.add_trace(go.Scattergeo(mode="lines", name=name,
+                                            hoverinfo='name', hoverlabel={'namelength': -1},
                                             lon=data_x[n*2:(n+1)*2],
                                             lat=data_y[n*2:(n+1)*2],
                                             line=dict(color='White'), showlegend=False))
