@@ -15,8 +15,8 @@ import matplotlib.dates as mdates
 from lightkurve import LightCurve, LightCurveCollection
 
 from . import API_ENDPOINT_EVENT, MPLSTYLE, ROOT_PATH
-from .utils import make_points, reconcile_input
-from .sources import glm_website, usg, pipeline, gmn
+from .utils import reconcile_input
+from .sources import glm_website, usg, pipeline, gmn, csv, remote
 
 _FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
                'confidenceRating', 'confidence', 'lightcurveStructure',
@@ -76,7 +76,8 @@ class BolideDataFrame(GeoDataFrame):
             files = [files]
 
         # input validation
-        valid_sources = ['website', 'usg', 'pickle', 'gmn', 'csv', 'pipeline', 'usg-orbits', 'remote']
+        valid_sources = ['website', 'glm', 'usg', 'pickle', 'gmn', 'csv', 'pipeline',
+                         'usg-orbits', 'glm-orbits', 'remote']
         if source not in valid_sources:
             raise ValueError("Source \""+str(source)+"\" is unsupported. Please use one of "+str(valid_sources))
 
@@ -91,49 +92,38 @@ class BolideDataFrame(GeoDataFrame):
         if source in ['pickle', 'csv'] and len(files) > 1:
             warn("More than one file given for source \""+source+"\". Only the first one will be used.")
 
-        if source == 'website':
+        if source in ['website', 'glm']:
+            source = 'glm'
             init_gdf = glm_website()
-            init_gdf['source'] = 'website'
 
         elif source == 'usg':
             init_gdf = usg()
-            init_gdf['source'] = 'usg'
 
         elif source == 'gmn':
             if 'date' not in kwargs:
                 raise ValueError('Must specify a yyyy-mm or yyyy-mm-dd date to use GMN data')
             init_gdf = gmn(kwargs['date'], loc_mode='begin')
-            init_gdf['source'] = 'gmn'
 
         elif source == 'pickle':
             with open(files[0], 'rb') as pkl:
                 init_gdf = pickle.load(pkl)
 
         elif source == 'csv':
-            init_gdf = pd.read_csv(files[0], index_col=0,
-                                   parse_dates=['datetime'],
-                                   keep_default_na=False,
-                                   na_values='')
-            # init_gdf = init_gdf.convert_dtypes()
-            lats = init_gdf['latitude']
-            lons = init_gdf['longitude']
-            points = make_points(lons, lats)
-            init_gdf = GeoDataFrame(init_gdf, geometry=points, crs="EPSG:4326")
+            init_gdf = csv(files[0])
 
         elif source == 'remote':
-            from io import StringIO
+            if 'url' not in kwargs:
+                raise ValueError('Must specify a url with url=...')
             url = kwargs['url']
-            from .sources import download
-            data = download(url)
-            buf = StringIO(data)
-            init_gdf = pd.read_csv(buf, parse_dates=['datetime'], keep_default_na=False, na_values='')
-            lats = init_gdf['latitude']
-            lons = init_gdf['longitude']
-            points = make_points(lons, lats)
-            init_gdf = GeoDataFrame(init_gdf, geometry=points, crs="EPSG:4326")
+            init_gdf = remote(url)
 
         elif source == 'usg-orbits':
-            init_gdf = BolideDataFrame(source='remote', url='https://aozerov.com/data/usg-orbits.csv')
+            init_gdf = remote('https://aozerov.com/data/usg-orbits.csv')
+            annotate = False
+
+        # elif source == 'glm-orbits':
+        #     init_gdf = csv(file=ROOT_PATH+'/../notebooks/glm-orbits.csv')
+        #     annotate = False
 
         elif source == 'pipeline':
             if 'min_confidence' in kwargs:
@@ -142,7 +132,7 @@ class BolideDataFrame(GeoDataFrame):
                 min_confidence = 0
             init_gdf = pipeline(files=files, min_confidence=min_confidence)
 
-            init_gdf['source'] = 'pipeline'
+        init_gdf['source'] = 'source'
 
         # rearrange columns, respecting original order if csv or pickle
         if source not in ['csv', 'pickle'] or rearrange is True:
@@ -505,15 +495,14 @@ class BolideDataFrame(GeoDataFrame):
         defaults = {'marker': '.', 'color': 'red', 'cmap': plt.get_cmap('viridis')}
         if 'c' in kwargs:
             del defaults['color']
-            kwargs['c'] = kwargs['c'][~bdf_proj.geometry.is_empty]
         kwargs = reconcile_input(kwargs, defaults)
 
-        bdf_proj = bdf_proj[~bdf_proj.geometry.is_empty]
-
-        # get x,y lists
-        points = bdf_proj['geometry']
-        x = np.array([p.x for p in points])
-        y = np.array([p.y for p in points])
+        good_locs = ~bdf_proj.geometry.is_empty
+        x = np.empty(len(bdf_proj))
+        y = np.empty(len(bdf_proj))
+        points = bdf_proj[good_locs]['geometry']
+        x[good_locs] = np.array([p.x for p in points])
+        y[good_locs] = np.array([p.y for p in points])
 
         # using the given style,
         with plt.style.context(style):
@@ -544,7 +533,7 @@ class BolideDataFrame(GeoDataFrame):
                 # for each unique category, scatter the data with the right color
                 for num, label in enumerate(unique):
                     idx = self[category] == label
-                    if s is not None:
+                    if s is not None and hasattr(s, '__getitem__'):
                         kwargs['s'] = s[idx]
                     ax.scatter(x[idx], y[idx], color=scalarMap.to_rgba(num), label=label, **kwargs)
                 plt.legend()
@@ -773,7 +762,7 @@ class BolideDataFrame(GeoDataFrame):
     def plot_dates(self, freq='1D', logscale=False,
                    start=None, end=None,
                    figsize=(10, 3), style=MPLSTYLE,
-                   showers=None, **kwargs):
+                   showers=None, line_style={}, **kwargs):
         """Plot the number of bolides over time.
 
         Parameters
@@ -794,8 +783,13 @@ class BolideDataFrame(GeoDataFrame):
         style : str
             The matplotlib style to use. Refer to
             https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
+        showers : ShowerDataFrame
+            A ShowerDataFrame to use for the shower data. By default, showers are pulled
+            from the established showers list at the IAU meter data center.
         figsize : tuple
             The size (width, height) of the plotted figure.
+        line_style : dict
+            The matplotlib style arguments for the vertical shower lines.
 
         Returns
         -------
@@ -860,10 +854,13 @@ class BolideDataFrame(GeoDataFrame):
                 import matplotlib.cm as cm
                 cmap = cm.Set2
 
+                defaults = {'linestyle': 'dashed', 'linewidth': 1,
+                            'alpha': 0.5}
+                line_kwargs = reconcile_input(line_style, defaults)
+
                 for name, date in zip(shower_names, shower_dates):
                     plt.axvline(x=date, color=cmap(unique.index(name)/8),
-                                label=name, linestyle='dashed', linewidth=1,
-                                alpha=0.5)
+                                label=name, **line_kwargs)
                 # remove extra labels for repeat showers
                 for i, p in enumerate(ax.get_lines()):
                     if p.get_label() in names[:i]:

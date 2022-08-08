@@ -62,14 +62,7 @@ def glm_website():
     df['brightness_g17'] = brightness_g17
     del df['brightness']
 
-    # create a list to be used as a geometry column
-    lats = df['latitude']
-    lons = df['longitude']
-    points = make_points(lons, lats)
-
-    # create GeoDataFrame using DataFrame and the geometry.
-    # EPSG:4326 because data is in lon-lat format.
-    gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
+    gdf = add_geometry(df)
 
     return gdf
 
@@ -109,12 +102,7 @@ def usg():
     other_cols = [col for col in df.columns if col not in first_cols]
     df = df[first_cols + other_cols]
 
-    # create a list to be used as a geometry column
-    lats = df['latitude']
-    lons = df['longitude']
-    points = make_points(lons, lats)
-
-    gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
+    gdf = add_geometry(df)
 
     return gdf
 
@@ -124,16 +112,15 @@ def pipeline(files, min_confidence=0):
     from .pipeline_utils import dict_from_zodb
     dict_of_lists = dict_from_zodb(files=files, min_confidence=min_confidence)
 
-    # create Point objects
-    lon = dict_of_lists['avgLon']
-    lat = dict_of_lists['avgLat']
-    points = make_points(lon, lat)
-    bdf = GeoDataFrame(dict_of_lists, geometry=points, crs="EPSG:4326")
+    df = pd.DataFrame(dict_of_lists)
+
     column_translation = {'avgLon': 'longitude', 'avgLat': 'latitude', 'bolideTime': 'datetime',
                           'timeDuration': 'duration', 'goesSatellite': 'detectedBy'}
-    bdf = bdf.rename(columns=column_translation)
+    df = df.rename(columns=column_translation)
 
-    return bdf
+    gdf = add_geometry(df)
+
+    return gdf
 
 
 def gmn(date, loc_mode='begin'):
@@ -205,14 +192,26 @@ def gmn(date, loc_mode='begin'):
 
     df = df.convert_dtypes()
 
-    # create a list to be used as a geometry column
-    lats = df['latitude']
-    lons = df['longitude']
-    points = make_points(lons, lats)
-
-    gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
+    gdf = add_geometry(df)
 
     return gdf
+
+
+def csv(file):
+    df = pd.read_csv(file, index_col=0,
+                     parse_dates=['datetime'],
+                     keep_default_na=False,
+                     na_values='')
+
+    gdf = add_geometry(df)
+    return gdf
+
+
+def remote(url):
+    data = download(url)
+    buf = StringIO(data)
+
+    return csv(buf)
 
 
 def download(url, chunk_size=1024, json=False):
@@ -228,3 +227,12 @@ def download(url, chunk_size=1024, json=False):
         import json
         return json.loads(buf.read())
     return buf.read()
+
+
+def add_geometry(df, lat_col='latitude', lon_col='longitude'):
+    lats = df[lat_col]
+    lons = df[lon_col]
+    points = make_points(lons, lats)
+
+    gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
+    return gdf

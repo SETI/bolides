@@ -61,14 +61,19 @@ def vel_to_radiant(dt, vx, vy, vz):
 
 def geocentric_to_ecliptic(ra, dec):
     from astropy.coordinates import SkyCoord
+    import astropy.units as u
     c = SkyCoord(ra=ra*u.degree, dec=dec*u.degree, frame='icrs')
     lat = c.barycentrictrueecliptic.lat.value
     lon = c.barycentrictrueecliptic.lon.value
     return lat, lon
 
 
-def calc_usg_orbit(dt, v, vx, vy, vz, lat, lon, alt, wmpl_path='python'):
+def calc_orbit(dt, v, vx, vy, vz, lat, lon, alt, wmpl_path='python'):
     """Input velocity in ITRS frame, output orbital elements"""
+    import numpy as np
+
+    keys = ['ra', 'dec', 'LaSun', 'a', 'e', 'i', 'peri', 'node', 'Pi', 'b', 'q', 'f', 'M', 'Q', 'n', 'T']
+
     from subprocess import Popen,  PIPE
     from astropy.coordinates import ICRS, SkyCoord
     from astropy.time import Time
@@ -79,15 +84,12 @@ def calc_usg_orbit(dt, v, vx, vy, vz, lat, lon, alt, wmpl_path='python'):
     radec = c.transform_to(ICRS)
     ra = radec.ra.value
     dec = radec.dec.value
-    import subprocess
     datestr = dt.strftime('%Y%m%d-%H%M%S.0')
     args = f'-r {ra} -d {dec} -v {v} -t {datestr} -a {lat} -o {lon} -e {alt} -s'.split()
     process = Popen([wmpl_path, "-m", "wmpl.Trajectory.Orbit"]+args, stdout=PIPE, stderr=PIPE)
     stdout, stderr = process.communicate()
     stdout = stdout.decode()
     contains_data = stdout.__contains__('Orbit:')
-    keys = ['ra', 'dec', 'LaSun', 'a', 'e', 'i', 'peri', 'node', 'Pi', 'b', 'q', 'f', 'M', 'Q', 'n', 'T']
-    import numpy as np
     if not contains_data:
         data = [np.nan]*len(keys)
     else:
@@ -106,7 +108,6 @@ def calc_usg_orbit(dt, v, vx, vy, vz, lat, lon, alt, wmpl_path='python'):
             data.append(float(lines[orbit_line+1+i].split()[idx]))
     data_dict = dict(zip(keys, data))
     return data_dict
-    
 
 
 def sol_lon_to_datetime(lon, year):

@@ -1,0 +1,11 @@
+[Unit]
+Description=Gunicorn instance to serve Flask
+After=network.target
+[Service]
+User=root
+Group=www-data
+WorkingDirectory=/home/webapp/bolides/webapp
+Environment="PATH=/home/webapp/miniconda3/envs/bolides/bin"
+ExecStart=/home/webapp/miniconda3/envs/bolides/bin/gunicorn --bind 127.0.0.1:8050 wsgi:app
+[Install]
+WantedBy=multi-user.target
