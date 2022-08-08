@@ -16,6 +16,8 @@ bolides
                 :target: https://mybinder.org/v2/gh/jcsmithhere/bolides/bdf-implementation?labpath=notebooks%2Ftutorial.ipynb
                 :alt: Binder link
 
+.. image:: https://raw.githubusercontent.com/jcsmithhere/bolides/bdf-implementation/docs/preview.gif
+
 ``bolides`` is a community package primarily designed to work with bolide detections from the Geostationary Lightning Mapper instruments aboard GOES-16 and GOES-17 that are published at `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_. But ``bolides`` can also read bolide data from ZODB database files produced by the GLM bolide detection pipeline, from `US Government sensors <https://cneos.jpl.nasa.gov/fireballs/>`_, and from your own .csv files containing bolide data.
 
 Functionality
