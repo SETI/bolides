@@ -17,8 +17,8 @@ conda create -n bolides
 conda activate bolides
 
 Follow installation instructions at bolides.readthedocs.io.
+Make sure to install with webapp support.
 
-pip install plotly dash flask_caching gunicorn
 sudo apt install nginx
 
 Download spacekit.js from https://typpo.github.io/spacekit/build/spacekit.js

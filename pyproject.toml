@@ -34,8 +34,13 @@ dependencies = [
     "scikit-learn",
     "watermark",
     "beautifulsoup4",
+    "plotly",
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/jcsmithhere/bolides"
 "Bug Tracker" = "https://github.com/jcsmithhere/bolides/issues"
+
+[project.optional-dependencies]
+pipeline = ['ZODB', 'zc.zlibstorage']
+webapp = ['dash', 'flask_caching', 'gunicorn']
