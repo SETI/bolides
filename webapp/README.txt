@@ -1,5 +1,8 @@
 Maintenance instructions, to run when git repository is updated:
 ================================================================
+MAKE SURE TO TEST AND DEBUG FIRST BY RUNNING app.py LOCALLY
+(If there is something broken, it might take down the whole website
+when you restart the service)
 ssh into the server
 cd bolides
 git pull
@@ -62,7 +65,17 @@ ExecStart=/home/webapp/miniconda3/envs/bolides/bin/gunicorn --bind 127.0.0.1:805
 WantedBy=multi-user.target
 -------------------------------------------------------------
 
-3) Starting the server
+3) Setting up HTTPS
+
+sudo apt-get install certbot python3-certbot-nginx
+sudo certbot --nginx -d bolides.seti.org
+
+Now we need to add a command to the crontab to auto-renew the certificate:
+sudo crontab -e
+Add the following line:
+0 12 * * * /usr/bin/certbot renew --quiet
+
+4) Starting the server
 
 Start the services:
 systemctl start flask.service
