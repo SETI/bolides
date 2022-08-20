@@ -1,6 +1,6 @@
 import os
-import requests
 from datetime import datetime, timedelta
+import requests
 from warnings import warn, filterwarnings
 from tqdm import tqdm
 
@@ -33,8 +33,8 @@ class BolideDataFrame(GeoDataFrame):
     source : str
         Specifies the source for the initialized. Can be:
 
-        - ``'website'``: initialize from neo-bolide-ndc.nasa.gov data
-        - ``'pipeline'`` to initialize from ZODB database files from the GLM detection pipeline.
+        - ``'glm'``: initialize from neo-bolide-ndc.nasa.gov data
+        - ``'glm-pipeline'`` to initialize from ZODB database files from the GLM detection pipeline.
         - ``'pickle'``: initialize from a pickled GeoDataFrame
         - ``'csv'``: initialize from a .csv file
         - ``'usg'``: initialize from US Government data at cneos.jpl.nasa.gov/fireballs/
@@ -45,7 +45,9 @@ class BolideDataFrame(GeoDataFrame):
 
         - For ``'pickle'``, specifies the filename of the pickled object.
         - For ``'csv'``, specifies the filename of the csv.
-        - For ``'pipeline'``, specifies the filename(s) of the database file(s)
+        - For ``'glm-pipeline'``, specifies the filename(s) of the database file(s)
+    url : str
+        Specifies remote url to be used with ``'remote'``.
     date : str, date, datetime
         Specifies a date when using Global Meteor Network data.
         str can be either yyyy-mm or yyyy-mm-dd.
@@ -57,6 +59,8 @@ class BolideDataFrame(GeoDataFrame):
     """
     def __init__(self, *args, **kwargs):
 
+        if len(args)==0 and len(kwargs)==0:
+            kwargs['source'] = 'glm'
         if 'source' not in kwargs:
             return super().__init__(*args, **kwargs)
 
@@ -67,9 +71,6 @@ class BolideDataFrame(GeoDataFrame):
         annotate = kwargs['annotate']
         rearrange = kwargs['rearrange']
 
-        # Initialize differently based on source.
-        # Each if statement creates a GeoDataFrame with the EPSG:4326 CRS
-
         # input standardization
         source = source.lower()
         if type(files) is str:
@@ -77,7 +78,7 @@ class BolideDataFrame(GeoDataFrame):
 
         # input validation
         valid_sources = ['website', 'glm', 'usg', 'pickle', 'gmn', 'csv', 'pipeline',
-                         'usg-orbits', 'glm-orbits', 'remote']
+                         'glm-pipeline', 'usg-orbits', 'glm-orbits', 'remote']
         if source not in valid_sources:
             raise ValueError("Source \""+str(source)+"\" is unsupported. Please use one of "+str(valid_sources))
 
@@ -91,6 +92,9 @@ class BolideDataFrame(GeoDataFrame):
 
         if source in ['pickle', 'csv'] and len(files) > 1:
             warn("More than one file given for source \""+source+"\". Only the first one will be used.")
+
+        # Initialize differently based on source.
+        # Each if statement creates a GeoDataFrame with the EPSG:4326 CRS
 
         if source in ['website', 'glm']:
             source = 'glm'
@@ -125,14 +129,15 @@ class BolideDataFrame(GeoDataFrame):
         #     init_gdf = csv(file=ROOT_PATH+'/../notebooks/glm-orbits.csv')
         #     annotate = False
 
-        elif source == 'pipeline':
+        elif source in ['glm-pipeline', 'pipeline']:
+            source = 'glm-pipeline'
             if 'min_confidence' in kwargs:
                 min_confidence = kwargs['min_confidence']
             else:
                 min_confidence = 0
             init_gdf = pipeline(files=files, min_confidence=min_confidence)
 
-        init_gdf['source'] = 'source'
+        init_gdf['source'] = source
 
         # rearrange columns, respecting original order if csv or pickle
         if source not in ['csv', 'pickle'] or rearrange is True:
@@ -149,25 +154,25 @@ class BolideDataFrame(GeoDataFrame):
 
         self.descriptions = pd.read_csv(ROOT_PATH+'/metadata/columns.csv', index_col='column')
 
-    def annotate(bdf):
+    def annotate(self):
         """Add metadata to bolide detections"""
-        from .astro_utils import get_phase, get_solarhour, get_sun_alt, get_observed_alts
+        from .astro_utils import get_phase, get_solarhour, get_sun_alt
 
         # lunar phase
-        bdf['phase'] = [get_phase(dt) for dt in bdf['datetime']]
+        self['phase'] = [get_phase(dt) for dt in self['datetime']]
         # moon fullness
-        bdf['moon_fullness'] = -np.abs(bdf['phase']-0.5)*2+1
+        self['moon_fullness'] = -np.abs(self['phase']-0.5)*2+1
         # solar hour
-        bdf['solarhour'] = [get_solarhour(data[0], data[1]) for data in zip(bdf['datetime'], bdf['longitude'])]
+        self['solarhour'] = [get_solarhour(data[0], data[1]) for data in zip(self['datetime'], self['longitude'])]
         # solar altitude
-        bdf['sun_alt'] = [get_sun_alt(row) for _, row in bdf.iterrows()]
-        # observed solar altitude
-        bdf['sun_alt_obs'] = get_observed_alts(bdf.sun_alt)
+        sun_alt = np.array([get_sun_alt(dt=row['datetime'].to_pydatetime(), lat=row['latitude'], lon=row['longitude']) for _, row in self.iterrows()])
+        self['sun_alt_obs'] = sun_alt[:, 0]
+        self['sun_alt_app'] = sun_alt[:, 1]
 
-        bdf['date_retrieved'] = datetime.now()
+        self['date_retrieved'] = datetime.now()
 
     def describe(self, key=None):
-        """Describe a variable of the BolieDataFrame
+        """Describe a variable of the BolideDataFrame
 
         Parameters
         ----------
@@ -553,33 +558,37 @@ class BolideDataFrame(GeoDataFrame):
 
         Parameters
         ----------
+        mode : str
+            Either ``'earth'`` or ``'radiant'``.
+            ``'earth'`` plots locations on the Earth,
+            ``'radiant'`` plots locations in the sky.
         projection : str
             The map projection to use. Here is the complete list:
-            ['eckert4', 'goes-e', 'goes-w', 'fy4a',
-            'airy', 'aitoff', 'albers', 'albers usa', 'august',
-            'azimuthal equal area', 'azimuthal equidistant', 'baker',
-            'bertin1953', 'boggs', 'bonne', 'bottomley', 'bromley',
-            'collignon', 'conic conformal', 'conic equal area', 'conic equidistant',
-            'craig', 'craster', 'cylindrical equal area',
-            'cylindrical stereographic', 'eckert1', 'eckert2',
-            'eckert3', 'eckert4', 'eckert5', 'eckert6', 'eisenlohr',
-            'equirectangular', 'fahey', 'foucaut', 'foucaut sinusoidal',
-            'ginzburg4', 'ginzburg5', 'ginzburg6',
-            'ginzburg8', 'ginzburg9', 'gnomonic', 'gringorten',
-            'gringorten quincuncial', 'guyou', 'hammer', 'hill',
-            'homolosine', 'hufnagel', 'hyperelliptical',
-            'kavrayskiy7', 'lagrange', 'larrivee', 'laskowski',
-            'loximuthal', 'mercator', 'miller', 'mollweide', 'mt flat polar parabolic',
-            'mt flat polar quartic', 'mt flat polar sinusoidal',
-            'natural earth', 'natural earth1', 'natural earth2',
-            'nell hammer', 'nicolosi', 'orthographic',
-            'patterson', 'peirce quincuncial', 'polyconic',
-            'rectangular polyconic', 'robinson', 'satellite', 'sinu mollweide',
-            'sinusoidal', 'stereographic', 'times',
-            'transverse mercator', 'van der grinten', 'van der grinten2',
-            'van der grinten3', 'van der grinten4',
-            'wagner4', 'wagner6', 'wiechel', 'winkel tripel',
-            'winkel3']
+            [``'eckert4'``, ``'goes-e'``, ``'goes-w'``, ``'fy4a'``,
+            ``'airy'``, ``'aitoff'``, ``'albers'``, ``'albers usa'``, ``'august'``,
+            ``'azimuthal equal area'``, ``'azimuthal equidistant'``, ``'baker'``,
+            ``'bertin1953'``, ``'boggs'``, ``'bonne'``, ``'bottomley'``, ``'bromley'``,
+            ``'collignon'``, ``'conic conformal'``, ``'conic equal area'``, ``'conic equidistant'``,
+            ``'craig'``, ``'craster'``, ``'cylindrical equal area'``,
+            ``'cylindrical stereographic'``, ``'eckert1'``, ``'eckert2'``,
+            ``'eckert3'``, ``'eckert4'``, ``'eckert5'``, ``'eckert6'``, ``'eisenlohr'``,
+            ``'equirectangular'``, ``'fahey'``, ``'foucaut'``, ``'foucaut sinusoidal'``,
+            ``'ginzburg4'``, ``'ginzburg5'``, ``'ginzburg6'``,
+            ``'ginzburg8'``, ``'ginzburg9'``, ``'gnomonic'``, ``'gringorten'``,
+            ``'gringorten quincuncial'``, ``'guyou'``, ``'hammer'``, ``'hill'``,
+            ``'homolosine'``, ``'hufnagel'``, ``'hyperelliptical'``,
+            ``'kavrayskiy7'``, ``'lagrange'``, ``'larrivee'``, ``'laskowski'``,
+            ``'loximuthal'``, ``'mercator'``, ``'miller'``, ``'mollweide'``, ``'mt flat polar parabolic'``,
+            ``'mt flat polar quartic'``, ``'mt flat polar sinusoidal'``,
+            ``'natural earth'``, ``'natural earth1'``, ``'natural earth2'``,
+            ``'nell hammer'``, ``'nicolosi'``, ``'orthographic'``,
+            ``'patterson'``, ``'peirce quincuncial'``, ``'polyconic'``,
+            ``'rectangular polyconic'``, ``'robinson'``, ``'satellite'``, ``'sinu mollweide'``,
+            ``'sinusoidal'``, ``'stereographic'``, ``'times'``,
+            ``'transverse mercator'``, ``'van der grinten'``, ``'van der grinten2'``,
+            ``'van der grinten3'``, ``'van der grinten4'``,
+            ``'wagner4'``, ``'wagner6'``, ``'wiechel'``, ``'winkel tripel'``,
+            ``'winkel3'``]
         boundary : str or list of str
             The boundaries to plot.
             Refer to `~bolides.fov_utils.get_boundary`.
@@ -602,6 +611,19 @@ class BolideDataFrame(GeoDataFrame):
             Refer to `~cartopy.mpl.geoaxes.GeoAxes.add_geometries`.
         figsize : tuple
             The size (width, height) of the plotted figure.
+        culture : str
+            When mode is ``'radiant'``, the asterism source culture to use. Here is the complete list:
+            [``'anutan'``, ``'aztec'``, ``'belarusian'``, ``'boorong'``,
+             ``'chinese'``, ``'chinese_contemporary'``, ``'chinese_medieval'``,
+             ``'egyptian'``, ``'hawaiian_starlines'``, ``'indian'``,
+             ``'inuit'``, ``'japanese_moon_stations'``, ``'korean'``,
+             ``'lokono'``, ``'macedonian'``, ``'maori'``, ``'maya'``,
+             ``'mongolian'``, ``'navajo'``, ``'norse'``, ``'northern_andes'``,
+             ``'romanian'``, ``'russian_siberian'``, ``'sami'``,
+             ``'sardinian'``, ``'tongan'``, ``'tukano'``, ``'tupi'``,
+             ``'western'``, ``'western_SnT'``, ``'western_hlad'``,
+             ``'western_rey'``]
+
 
         Returns
         -------
@@ -899,11 +921,6 @@ class BolideDataFrame(GeoDataFrame):
                 row_lcs.append(lc)
             lclist.append(LightCurveCollection(row_lcs))
         self['lightcurves'] = lclist
-
-    def to_pickle(self, filename):
-        """Dump BolideDataFrame to a pickle at specified filename"""
-        with open(filename, 'wb') as f:
-            pickle.dump(self, f)
 
     # TODO: match on a column other than _id?
     def augment(self, new_data, time_limit=300, score_limit=5, intersection=False, outer=False):

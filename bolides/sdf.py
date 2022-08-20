@@ -20,7 +20,15 @@ class ShowerDataFrame(pd.DataFrame):
     file : str
         Specifies files to be used if the source is ``'csv'``
     """
-    def __init__(self, source='established', file=None):
+    def __init__(self, *args, **kwargs):
+        if len(args)==0 and len(kwargs)==0:
+            kwargs['source'] = 'established'
+        if 'source' not in kwargs:
+            return super().__init__(*args, **kwargs)
+        if 'file' not in kwargs:
+            kwargs['file'] = None
+        source = kwargs['source']
+        file = kwargs['file']
         if source == 'csv':
             df = pd.read_csv(file, index_col=0, keep_default_na=False, na_values='')
         else:
@@ -237,6 +245,10 @@ class ShowerDataFrame(pd.DataFrame):
         result = super().__getitem__(key)
         force_showers_class(result)
         return result
+
+    @property
+    def _constructor(self):
+        return ShowerDataFrame
 
     def _repr_html_(self):
         with pd.option_context('display.max_columns', None):

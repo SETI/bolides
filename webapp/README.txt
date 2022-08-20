@@ -37,7 +37,7 @@ Copy the flask.conf in bolides/webapp/configs (also below) to:
 /etc/nginx/conf.d/flask.conf
 --------------------------------------------------------------------
 server {
-        server_name bolides.seti.org;
+        server_name YOUR_DOMAIN_NAME_HERE;
         location / {
                 include proxy_params;
                 proxy_pass http://127.0.0.1:8050;
@@ -65,10 +65,14 @@ ExecStart=/home/webapp/miniconda3/envs/bolides/bin/gunicorn --bind 127.0.0.1:805
 WantedBy=multi-user.target
 -------------------------------------------------------------
 
-3) Setting up HTTPS
+3) DNS and HTTPS
+
+Contact your hosting or DNS provider to add a DNS A record pointing
+your domain to the server's IP address. Now, make the server work with
+HTTPS:
 
 sudo apt-get install certbot python3-certbot-nginx
-sudo certbot --nginx -d bolides.seti.org
+sudo certbot --nginx -d YOUR_DOMAIN_NAME_HERE
 
 Now we need to add a command to the crontab to auto-renew the certificate:
 sudo crontab -e

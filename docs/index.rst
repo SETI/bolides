@@ -18,4 +18,3 @@ Documentation
     installation
     reference/index
     tutorials/index
-    webapp/index

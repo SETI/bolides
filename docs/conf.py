@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'bolides'
-copyright = '2022, Anthony Ozerov and the NASA ATAP team'
+copyright = ''#2022, Anthony Ozerov and the NASA ATAP team'
 author = 'Anthony Ozerov and the NASA ATAP team'
 
 # The full version, including alpha/beta/rc tags
@@ -59,9 +59,10 @@ html_theme = 'pydata_sphinx_theme'
 
 html_context = {"default_mode": "light"}
 html_theme_options = {
-    "external_links": [],
+    "external_links": [{'url': 'https://bolides.seti.org', 'name': '🌠 webapp'}],
     "github_url": "https://github.com/jcsmithhere/bolides",
-    "navbar_end": ["navbar-icon-links"]
+    "navbar_end": ["navbar-icon-links"],
+    "footer_items": ["footer"]
 }
 
 

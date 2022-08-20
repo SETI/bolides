@@ -36,8 +36,8 @@ tab_selected_style = {
 }
 
 
-source_dict = {'USG data at cneos.jpl.nasa.gov/fireballs/': 'usg',
-               'GLM data at neo-bolide.ndc.nasa.gov/': 'website',
+source_dict = {'GLM data at neo-bolide.ndc.nasa.gov/': 'glm',
+               'USG data at cneos.jpl.nasa.gov/fireballs/': 'usg',
                'Global Meteor Network data at globalmeteornetwork.org/data/': 'gmn',
                'Meteor shower data at www.ta3.sk/IAUC22DB/MDC2007/': 'showers',
                'USG data with computed orbits': 'usg-orbits'}
@@ -227,6 +227,9 @@ Depending on the data source selected, one, two, or three of the following map t
 - Orbits: plot any computed orbits in the data using the orbital elements.
 - Radiants: plot any known meteor radiants (ra, dec) in the data.
 
+If you have GLM data selected, you may also click on a bolide detection on the map
+to plot its (uncalibrated) light curve.
+
 This webapp uses the [`bolides`](https://bolides.readthedocs.io) Python package as a backend.
 The package is recommended for more thorough data analysis. Source code for this prototype webapp
 is available in the [`bolides` package repository](https://github.com/jcsmithhere/bolides).
@@ -235,9 +238,7 @@ The export button above the table will export filtered data to a .csv file that
 can be read by `bolides` or any spreadsheet software.
 
 ------
-To get started, select a data source below. If you have GLM data selected,
-you may also click on a bolide detection on the map to plot its (uncalibrated)
-light curve.
+**To get started, select a data source below.**
 '''
     ),
 
@@ -246,6 +247,7 @@ light curve.
     html.Div(id='gmn-div', children=['Date for GMN data: ',
              dcc.Input(type='text', id='gmn-date', placeholder='yyyy-mm-dd or yyyy-mm',
                        style={'display': 'inline-block'}, debounce=True)], style={'display': 'none'}),
+    dcc.Markdown('-------'),
 
     dcc.Dropdown(id='color', placeholder='Select a variable to color by',
                  style={'width': '50vw', 'display': 'inline-block', 'verticalAlign': 'top'}),
