@@ -98,7 +98,7 @@ def df_from_source(source, gmn_date):
     return df
 
 
-#@cache.memoize(timeout=60)
+@cache.memoize(timeout=600)
 def get_df(source, gmn_date=None):
     import os
     if source != 'showers':
@@ -129,6 +129,7 @@ def get_df(source, gmn_date=None):
 
 SHOWER_OPTIONS = get_df('showers')['shower name'].unique()
 
+@cache.memoize(timeout=600)
 def get_df_from_filters(source, filter_query=None, start_date=None, end_date=None,
                         filter_fov=[], boundary_checklist=[], sort_by=None,
                         shower=None, padding=None, shower_exclude=[], observation=[],
@@ -187,6 +188,7 @@ def get_df_from_filters(source, filter_query=None, start_date=None, end_date=Non
         return df
 
 
+@cache.memoize(timeout=600)
 def get_df_from_idx(source, gmn_date, rows):
     if source is None:
         df = pd.DataFrame({})
@@ -450,6 +452,7 @@ def update_gmn_div(source):
     return {'display': 'none'}
 
 
+@cache.memoize(timeout=600)
 @app.callback(
 Output('scatter-x', 'options'),
 Output('scatter-y', 'options'),
@@ -620,6 +623,7 @@ def split_filter_part(filter_part):
     return [None] * 3
 
 
+@cache.memoize(timeout=600)
 @app.callback(
 Output("main-map", "figure"),
 Input("source-select", "value"),
@@ -656,6 +660,7 @@ def update_map(source, gmn_date, rows, color_column, log_color, boundary_checkli
     fig.update_layout(paper_bgcolor='rgba(0, 0, 0, 0)', plot_bgcolor='rgba(0, 0, 0, 0)')
     return fig
 
+@cache.memoize(timeout=600)
 @app.callback(
 Output("radiant-map", "figure"),
 Input("source-select", "value"),
@@ -770,6 +775,7 @@ def download_lc(n_clicks, data):
     filename = _id+'_light_curve.csv'
     return dict(content=download_buffer.getvalue(), filename=filename)
 
+@cache.memoize(timeout=600)
 @app.callback(
 Output('orbital-elements', 'children'),
 #Output('orbit-legend', 'figure'),
