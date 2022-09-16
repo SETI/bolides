@@ -22,7 +22,7 @@ copyright = ''#2022, Anthony Ozerov and the NASA ATAP team'
 author = 'Anthony Ozerov and the NASA ATAP team'
 
 # The full version, including alpha/beta/rc tags
-release = '0.4'
+release = '0.5.0'
 
 
 # -- General configuration ---------------------------------------------------
