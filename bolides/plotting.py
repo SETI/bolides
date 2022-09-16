@@ -78,7 +78,7 @@ def plot_interactive(df, mode='earth', projection="eckert4",
     proj_name = projection
     if projection in ['goes-e', 'goes-w', 'fy4a']:
         proj_name = 'satellite'
-    if logscale and all([isinstance(x, numbers.Number) for x in df[color]]):
+    if logscale and color is not None and all([isinstance(x, numbers.Number) for x in df[color]]):
         fig = px.scatter_geo(df, lat=loc_cols[0], lon=loc_cols[1],
                              color=np.log(df[color]),
                              projection=proj_name, **kwargs)

@@ -71,6 +71,7 @@ radiant_projections = ['stereographic', 'orthographic'] + projections
 from bolides import ROOT_PATH
 import os
 cultures = os.listdir(ROOT_PATH+'/data/constellations')
+cultures = [c for c in cultures if c[-4:] == '.csv']
 cultures = sorted([c[:-4] for c in cultures])
 
 ROT_MARKS = [-360, -270, -180, -90, 0, 90, 180, 270, 360]
@@ -189,7 +190,10 @@ def get_df_from_filters(source, filter_query=None, start_date=None, end_date=Non
 
 
 @cache.memoize(timeout=600)
-def get_df_from_idx(source, gmn_date, rows):
+def get_df_from_idx(data_rows):
+    source = data_rows['source']
+    gmn_date = data_rows['date']
+    rows = data_rows['rows']
     if source is None:
         df = pd.DataFrame({})
     elif source_dict[source] == 'gmn' and gmn_date is None:
@@ -249,6 +253,9 @@ can be read by `bolides` or any spreadsheet software.
     html.Div(id='gmn-div', children=['Date for GMN data: ',
              dcc.Input(type='text', id='gmn-date', placeholder='yyyy-mm-dd or yyyy-mm',
                        style={'display': 'inline-block'}, debounce=True)], style={'display': 'none'}),
+    dcc.Markdown(''),
+    dcc.Loading(children=[html.Div(id='loading-indicator', children=[''])], fullscreen=True,
+                color='#000000', type='circle', style={'backgroundColor': 'transparent'}),
     dcc.Markdown('-------'),
 
     dcc.Dropdown(id='color', placeholder='Select a variable to color by',
@@ -299,7 +306,16 @@ can be read by `bolides` or any spreadsheet software.
                      style={'width': '40vw', 'display': 'inline-block'})]),
 
 
-        dcc.Graph(id='main-map', config={'displaylogo': False}, style={'height': '900px'})]),
+        dcc.Loading(parent_className='loading_wrapper',
+                    children=[dcc.Graph(id='main-map', config={'displaylogo': False}, style={'height': '900px'})],
+                    color='#000000', type='circle', style={'backgroundColor': 'transparent'}),
+
+        html.Div(children=[], id='lightcurve'),
+        html.Button("Export light curve(s) as csv", id="save-button-lc", style={'display': 'none'}),
+        dcc.Download(id='download-lc'),
+        dcc.Store(id='lc-store'),
+        html.A(' More data on this bolide', href="", id='bolide-link')]),
+
         dcc.Tab(label='Orbits', style=tab_style, selected_style=tab_selected_style, children=[
             html.Div(id='orbit-map', style={'width':'100%','height': '900px', 'display':'inline-block'})
             #dcc.Graph(id='orbit-legend', style={'width': '5vw', 'height': '900px', 'display':'inline-block'})
@@ -344,11 +360,6 @@ can be read by `bolides` or any spreadsheet software.
             style={'display': 'inline-block', 'width': '45vw', 'margin': '0 auto'})
         ]),
     
-    html.Div(children=[], id='lightcurve'),
-    html.Button("Export light curve(s) as csv", id="save-button-lc", style={'display': 'none'}),
-    dcc.Download(id='download-lc'),
-    dcc.Store(id='lc-store'),
-    html.A(' More data on this bolide', href="", id='bolide-link'),
     ], style={'width': '90vw', 'margin': '0 auto'}),
 
     dcc.Download(id="download"),
@@ -373,7 +384,7 @@ can be read by `bolides` or any spreadsheet software.
         style_cell={'font-size': '12px'}
     ),
 
-    dcc.Store(id='data-rows'),
+    dcc.Store(id='data-rows', data={'source':None, 'date':None, 'rows':None}),
     html.Div(id='orbital-elements', children=[''],style={'display':'none'}),
     dcc.Markdown('Site developed by [Anthony Ozerov](https://aozerov.com) and the NASA ATAP team.')
 
@@ -385,32 +396,31 @@ Output('main-table', 'data'),
 Output('main-table', 'columns'),
 Output('main-table', 'page_count'),
 Output('data-rows', 'data'),
+Output('loading-indicator', 'children'),
 Input('source-select', 'value'),
 Input('gmn-date', 'value'),
-Input('main-table', "page_current"),
-Input('main-table', "page_size"),
 Input('main-table', "filter_query"),
 Input('date-start', 'value'),
 Input('date-end', 'value'),
 Input('filter-fov', 'value'),
 Input('boundary-checklist', 'value'),
-Input('main-table', 'sort_by'),
 Input('shower', 'value'),
 Input('shower-padding', 'value'),
 Input('shower-exclude', 'value'),
-Input('observation-checklist', 'value')
+Input('observation-checklist', 'value'),
+Input('main-table', "page_current"),
+Input('main-table', "page_size"),
+Input('main-table', 'sort_by'),
 )
-def update_data(source, gmn_date, page_current, page_size, filter_query, start_date, end_date, filter_fov,
-                boundary_checklist, sort_by, shower, padding, shower_exclude, observation):
+def update_data(source, gmn_date, filter_query, start_date, end_date, filter_fov, boundary_checklist,
+                shower, padding, shower_exclude, observation, page_current, page_size, sort_by):
     print('updating table')
 
     start_date = validate_iso(start_date)
     end_date = validate_iso(end_date)
 
-    df = get_df_from_filters(source, filter_query, start_date, end_date,
-                             filter_fov, boundary_checklist, sort_by,
-                             shower, padding, shower_exclude, observation,
-                             gmn_date)
+    df = get_df_from_filters(source, filter_query, start_date, end_date, filter_fov, boundary_checklist,
+                             sort_by, shower, padding, shower_exclude, observation, gmn_date)
 
     page_count = len(df)//page_size + 1
     data = df.iloc[page_current * page_size:(page_current + 1) * page_size].to_dict('records')
@@ -430,7 +440,7 @@ def update_data(source, gmn_date, page_current, page_size, filter_query, start_d
                 col['format'] = Format(precision=3)
 
     rows = list(df.index)
-    return data, columns, page_count, rows
+    return data, columns, page_count, {'source': source, 'date': gmn_date, 'rows': rows}, ['']
 
 
 def validate_iso(datestr):
@@ -462,17 +472,17 @@ Output('scatter-x', 'value'),
 Output('scatter-y', 'value'),
 Output('hist-var', 'value'),
 Output('color', 'value'),
-Input('source-select', 'value'),
-Input('gmn-date', 'value'),
+Input('data-rows', 'data'),
 State('scatter-x', 'value'),
 State('scatter-y', 'value'),
 State('hist-var', 'value'),
 State('color', 'value')
 )
-def update_dropdowns(source, gmn_date, scatter_x, scatter_y, hist_var, color):
+def update_dropdowns(data_rows, scatter_x, scatter_y, hist_var, color):
+    source = data_rows['source']
     if source is None:
         return [], [], [], [], None, None, None, None
-    df = get_df(source, gmn_date)
+    df = get_df_from_idx(data_rows)
 
     numeric_columns = []
     color_columns = []
@@ -506,13 +516,11 @@ Input('scatter-x', 'value'),
 Input('scatter-y', 'value'),
 Input('color', 'value'),
 Input('log-color', 'value'),
-Input('data-rows', 'data'),
-Input('source-select', 'value'),
-Input('gmn-date', 'value')
+State('data-rows', 'data')
 )
-def update_scatter(x, y, color_column, log_color, rows, source, gmn_date):
+def update_scatter(x, y, color_column, log_color, data_rows):
     print('updating scatter')
-    df = get_df_from_idx(source, gmn_date, rows)
+    df = get_df_from_idx(data_rows)
     fig = go.Figure()
     if len(df) > 0 and x is not None and y is not None:
         import numbers
@@ -535,16 +543,14 @@ def update_scatter(x, y, color_column, log_color, rows, source, gmn_date):
 Output('hist', 'figure'),
 Input('hist-var', 'value'),
 Input('hist-bins', 'value'),
-Input('source-select', 'value'),
-Input('gmn-date', 'value'),
 Input('data-rows', 'data'),
 Input('color', 'value')
 )
-def update_hist(var, bins, source, gmn_date, rows, color_column):
+def update_hist(var, bins, data_rows, color_column):
     print('updating histogram')
     if bins is None:
         bins = 1
-    df = get_df_from_idx(source, gmn_date, rows)
+    df = get_df_from_idx(data_rows)
     fig = go.Figure()
     if len(df) > 0 and var is not None:
         start = min(df[var])
@@ -570,11 +576,9 @@ def update_hist(var, bins, source, gmn_date, rows, color_column):
 @app.callback(
 Output("download", "data"),
 Input("save-button", "n_clicks"),
-State('source-select', 'value'),
-State('gmn-date', 'value'),
 State('data-rows', 'data'))
-def download_as_csv(n_clicks, source, gmn_date, rows):
-    df = get_df_from_idx(source, gmn_date, rows)
+def download_as_csv(n_clicks, data_rows):
+    df = get_df_from_idx(data_rows)
     if not n_clicks:
         raise PreventUpdate
     download_buffer = io.StringIO()
@@ -626,21 +630,17 @@ def split_filter_part(filter_part):
 @cache.memoize(timeout=600)
 @app.callback(
 Output("main-map", "figure"),
-Input("source-select", "value"),
-Input('gmn-date', 'value'),
 Input("data-rows", "data"),
 Input("color", "value"),
 Input('log-color', 'value'),
-Input('boundary-checklist', 'value'),
+State('boundary-checklist', 'value'),
 Input('earth-projection', 'value'),
-Input('main-table', "page_current"),
-Input('main-table', "page_size"),
 Input('earth-rotation', "value"),
-Input('earth-lat', "value"),
-Input('date-start','value'))
-def update_map(source, gmn_date, rows, color_column, log_color, boundary_checklist, projection, page_current, page_size, rot, lat, start_date):
+Input('earth-lat', "value"))
+def update_map(data_rows, color_column, log_color, boundary_checklist, projection, rot, lat):
     print('updating map')
-    df = get_df_from_idx(source, gmn_date, rows)
+    source = data_rows['source']
+    df = get_df_from_idx(data_rows)
     if color_column not in df.columns:
         color_column = None
 
@@ -653,8 +653,6 @@ def update_map(source, gmn_date, rows, color_column, log_color, boundary_checkli
     fig = df.plot_interactive('earth', projection, boundary_checklist, color_column, logscale)
     fig.update_geos(projection_rotation=dict(lat=lat, roll=rot))
 
-    df = df.iloc[page_current * page_size:(page_current + 1) * page_size]
-
     fig.update_layout(uirevision=str(source)+str(projection))
     fig.update_layout(legend={'orientation': 'h', 'y': 1})
     fig.update_layout(paper_bgcolor='rgba(0, 0, 0, 0)', plot_bgcolor='rgba(0, 0, 0, 0)')
@@ -663,22 +661,18 @@ def update_map(source, gmn_date, rows, color_column, log_color, boundary_checkli
 @cache.memoize(timeout=600)
 @app.callback(
 Output("radiant-map", "figure"),
-Input("source-select", "value"),
-Input('gmn-date', 'value'),
 Input("data-rows", "data"),
 Input("color", "value"),
 Input('log-color', 'value'),
-Input('boundary-checklist', 'value'),
 Input('radiant-projection', 'value'),
-Input('main-table', "page_current"),
-Input('main-table', "page_size"),
 Input('radiant-rotation', "value"),
 Input('radiant-lat', "value"),
 Input('culture-dropdown','value'),
 Input('radiant-plane','value'))
-def update_radiants(source, gmn_date, rows, color_column, log_color, boundary_checklist, projection, page_current, page_size, rot, lat, culture, ref_plane):
+def update_radiants(data_rows, color_column, log_color, projection, rot, lat, culture, ref_plane):
     print('updating radiants')
-    df = get_df_from_idx(source, gmn_date, rows)
+    source = data_rows['source']
+    df = get_df_from_idx(data_rows)
     if color_column not in df.columns:
         color_column = None
 
@@ -688,12 +682,10 @@ def update_radiants(source, gmn_date, rows, color_column, log_color, boundary_ch
     projection = projection.strip()
         
     df.__class__ = BolideDataFrame
-    fig = df.plot_interactive(mode='radiant', projection=projection, boundary=boundary_checklist,
+    fig = df.plot_interactive(mode='radiant', projection=projection,
                               color=color_column, logscale=logscale,
                               culture=culture, reference_plane=ref_plane)
     fig.update_geos(projection_rotation=dict(lat=lat, roll=rot))
-
-    df = df.iloc[page_current * page_size:(page_current + 1) * page_size]
 
     fig.update_layout(uirevision=str(source)+str(projection))
     #fig.update_layout(legend={'orientation': 'h', 'y': 1})
@@ -707,17 +699,18 @@ Output('save-button-lc', 'style'),
 Output('bolide-link', 'style'),
 Output('bolide-link', 'href'),
 Input('main-map', 'clickData'),
-State("source-select", "value"),
 State("data-rows", "data"),
 State("color", "value")
 )
-def update_lightcurve(clickData, source, rows, color_column):
-    if source is None or source_dict[source] != 'website':
+def update_lightcurve(clickData, data_rows, color_column):
+    source = data_rows['source']
+    if source is None or source_dict[source] != 'glm':
         return [], [], {'display': 'none'}, {'display': 'none'}, ""
     print('updating lightcurve')
-    df = get_df_from_idx(source, None, rows)
+    df = get_df_from_idx(data_rows)
     if len(df) == 0:
         return [], [], {'display': 'none'}, {'display': 'none'}, ""
+    print('ahhhh')
     fig = go.Figure()
     csvs = []
     cat_idx = clickData['points'][0]['curveNumber']
@@ -727,8 +720,7 @@ def update_lightcurve(clickData, source, rows, color_column):
     df = df.iloc[clickData['points'][0]['pointIndex']]
 
     df = pd.DataFrame(df).T
-    df.to_csv('tmp.csv')
-    bdf = BolideDataFrame(source='csv', files='tmp.csv')
+    bdf = BolideDataFrame(df)
     bdf.add_website_data()
     lcc = bdf.lightcurves.iloc[0]
     _id = bdf._id.iloc[0]
@@ -748,8 +740,9 @@ def update_lightcurve(clickData, source, rows, color_column):
                   title='Light curve for bolide with ID '+_id)
     fig.update_layout(margin={"r": 0, "t": 30, "l": 0, "b": 0}, hovermode='x unified')
     fig.update_layout(paper_bgcolor='rgba(0, 0, 0, 0)', plot_bgcolor='rgba(0, 0, 0, 0)')
+    fig.update_layout(xaxis_title="Time", yaxis_title="GLM-reported integrated energy (Joules)")
     fig.update_xaxes(ticks='inside')
-    fig.update_yaxes(ticks='inside')
+    fig.update_yaxes(ticks='inside', showexponent='all', exponentformat='power')
     fig.update_xaxes(mirror=True, showline=True, linewidth=1, linecolor='black')
     fig.update_yaxes(mirror=True, showline=True, linewidth=1, linecolor='black')
 
@@ -780,13 +773,11 @@ def download_lc(n_clicks, data):
 Output('orbital-elements', 'children'),
 #Output('orbit-legend', 'figure'),
 Input('data-rows', 'data'),
-Input('source-select', 'value'),
-Input('gmn-date', 'value'),
 Input('color', 'value'),
 Input('log-color', 'value')
 )
-def update_orbits(rows, source, gmn_date, color, logscale):
-    df = get_df_from_idx(source, gmn_date, rows)
+def update_orbits(data_rows, color, logscale):
+    df = get_df_from_idx(data_rows)
     orbit_cols = ['a', 'e', 'q', 'i', 'node', 'peri']
 
     if not all([col in df.columns for col in orbit_cols]):
@@ -810,7 +801,7 @@ def update_orbits(rows, source, gmn_date, color, logscale):
             idx = list(data.x)
             color = data.marker['color']
             if type(color) is not str:
-                color = np.array(color)
+                color = np.array(color).astype(float)
                 minimum = np.nanmin(color)
                 maximum = np.nanmax(color)
                 nans = np.isnan(color)
@@ -842,7 +833,7 @@ State('tabs', 'value')
 def change_tab(source, current_tab):
     if source is None:
         pass
-    elif source_dict[source] == 'website' and current_tab in ['tab-2', 'tab-3']:
+    elif source_dict[source] == 'glm' and current_tab in ['tab-2', 'tab-3']:
         return 'tab-1'
     elif source_dict[source] == 'usg' and current_tab == 'tab-2':
         return 'tab-1'

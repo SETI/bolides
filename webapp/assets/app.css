@@ -158,3 +158,6 @@ html{
   border-color: grey;
   border: solid 2px #545454
 }
+.loading_wrapper > div {
+    visibility: visible !important;
+}

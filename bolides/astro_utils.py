@@ -33,8 +33,8 @@ def get_solarhour(datetime, lon):
 def get_sun_alt(dt, lat, lon):
     """Get the solar altitude given a date and location"""
     obs = ephem.Observer()
-    obs.lon = lon
-    obs.lat = lat
+    obs.lon = str(lon)
+    obs.lat = str(lat)
     obs.date = dt
     sun = ephem.Sun()
     sun.compute(obs)
