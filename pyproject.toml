@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bolides"
-version = "0.4.8"
+version = "0.5.0"
 authors = [
   { name="Anthony Ozerov", email="a.ozerov@columbia.edu" },
 ]
@@ -14,7 +14,7 @@ requires-python = ">=3.7"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: BSD License",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
@@ -23,8 +23,6 @@ dependencies = [
     "pandas",
     "ephem",
     "geopandas",
-#    "cartopy == 0.18.0.post1",
-#    "shapely",
     "matplotlib",
     "lightkurve",
     "netCDF4",
