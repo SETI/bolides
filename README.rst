@@ -13,10 +13,10 @@ bolides
                 :target: https://pypi.org/project/bolides/
                 :alt: PyPI link
 .. |binder-badge| image:: https://mybinder.org/badge_logo.svg
-                :target: https://mybinder.org/v2/gh/jcsmithhere/bolides/bdf-implementation?labpath=notebooks%2Ftutorial.ipynb
+                :target: https://mybinder.org/v2/gh/jcsmithhere/bolides/master?labpath=notebooks%2Ftutorial.ipynb
                 :alt: Binder link
 
-.. image:: https://raw.githubusercontent.com/jcsmithhere/bolides/bdf-implementation/docs/preview.gif
+.. image:: https://raw.githubusercontent.com/jcsmithhere/bolides/master/docs/preview.gif
 
 ``bolides`` is a community package primarily designed to work with bolide detections from the Geostationary Lightning Mapper instruments aboard GOES-16 and GOES-17 that are published at `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_. But ``bolides`` can also read bolide data from ZODB database files produced by the GLM bolide detection pipeline, from `US Government sensors <https://cneos.jpl.nasa.gov/fireballs/>`_, and from your own .csv files containing bolide data.
 
@@ -45,11 +45,14 @@ All package documentation is hosted at `bolides.readthedocs.io <https://bolides.
 
 Installation
 ============
+
 .. installation-start
+
 We want to make installation as easy as possible. If you have any problems with the installation process, please `open an issue <https://github.com/jcsmithhere/bolides/issues/new/choose>`_.
 
 Dependencies
 ------------
+
 If using Conda, just use Conda to install cartopy: ``conda install -c conda-forge cartopy``.
 
 If using pip:
@@ -60,20 +63,21 @@ If using pip:
 
 The package
 -----------
+
 While the package is still in development we recommend installing from source:
 
 #. Download this repository: ``git clone https://github.com/jcsmithhere/bolides.git``
 #. Move into it: ``cd bolides``
-#. Switch to the ``bdf-implementation`` branch: ``git checkout bdf-implementation``
 #. Install the package in editable mode: ``pip install -e .``
 
-You can also install the code on this branch from TestPyPI using ``pip install -i https://test.pypi.org/simple/ bolides --extra-index-url https://pypi.org/simple/``, but this is not recommended and is just for distribution testing.
+Once this package is on the Python Package Index, you can install via pip using ``pip install bolides``.
 
 .. installation-end
+
 Tutorial
 ========
 
-For a usage tutorial, go `here <https://bolides.readthedocs.io/en/latest/tutorials>`_. An interactive version is hosted on `binder <https://mybinder.org/v2/gh/jcsmithhere/bolides/bdf-implementation?labpath=notebooks%2Ftutorial.ipynb>`_.
+For a usage tutorial, go `here <https://bolides.readthedocs.io/en/latest/tutorials>`_. An interactive version is hosted on `binder <https://mybinder.org/v2/gh/jcsmithhere/bolides/master?labpath=notebooks%2Ftutorial.ipynb>`_.
 
 .. start-after-here
 
@@ -85,5 +89,5 @@ The original version of ``bolides`` was developed by Clemens Rumpf and Geert Bar
 Acknowledgments
 ===============
 
-Work carried out for this project is supported by NASA’s Planetary Defense Coordination Office (PDCO).
+This development is supported through NASA's Asteroid Threat Assessment Project (ATAP), which is funded through NASA's Planetary Defense Coordination Office (PDCO).
 Anthony Ozerov is supported through NASA Cooperative Agreement 80NSSC19M0089.

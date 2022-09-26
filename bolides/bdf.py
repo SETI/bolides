@@ -152,7 +152,8 @@ class BolideDataFrame(GeoDataFrame):
         if annotate:
             self.annotate()
 
-        self.descriptions = pd.read_csv(ROOT_PATH+'/metadata/columns.csv', index_col='column')
+        descriptions = pd.read_csv(ROOT_PATH+'/metadata/columns.csv', index_col='column')
+        self.descriptions = descriptions[descriptions.sources.isin([source, 'all'])]
 
     def annotate(self):
         """Add metadata to bolide detections"""
@@ -191,6 +192,11 @@ class BolideDataFrame(GeoDataFrame):
         if type(key) is str:
             key = [key]
         to_describe = self.columns if key is None else key
+        if 'source' in self.columns and len(self)>0:
+            source = self['source'].iloc[0]
+        else:
+            source = ''
+        sources = ['all', source]
         for column in to_describe:
             description = self.descriptions['description'][column] if column in self.descriptions.index else ""
             print(column+":", description)
@@ -328,9 +334,10 @@ class BolideDataFrame(GeoDataFrame):
         sensors: str or list of str
             The sensor(s) to filter the `~BolideDataFrame` by:
 
-            - ``'glm16'``: The Geostationary Lightning Mapper aboard GOES-16.
-            - ``'glm17'``: The Geostationary Lightning Mapper aboard GOES-17.
+            - ``'GLM-16'``: The Geostationary Lightning Mapper aboard GOES-16.
+            - ``'GLM-17'``: The Geostationary Lightning Mapper aboard GOES-17.
               Note that the biannual yaw flips of GOES-17 are taken into account.
+              The shorthand ``'G16'`` and ``'G17'`` can also be used.
 
         intersection: bool
             If True, filter for bolides observable by all sensors given.
@@ -349,14 +356,14 @@ class BolideDataFrame(GeoDataFrame):
             raise ValueError("Sensors must be a string or list of strings")
         sensors = [sensor.lower() for sensor in sensors]
 
-        valid_sensors = ['glm16', 'glm17']
+        valid_sensors = ['g16', 'g17', 'glm-16', 'glm-17']
 
         indices = []
         for num, sensor in enumerate(sensors):
             filename = sensor
-            if sensor == 'glm16':
+            if sensor in ['g16', 'glm-16']:
                 filename = ROOT_PATH + '/data/glm16_obs.csv'
-            elif sensor == 'glm17':
+            elif sensor in ['g17', 'glm-17']:
                 filename = ROOT_PATH + '/data/glm17_obs.csv'
             else:
                 raise ValueError("Invalid sensor \""+sensor+"\". sensors must be in "+str(valid_sensors))
@@ -896,9 +903,21 @@ class BolideDataFrame(GeoDataFrame):
         return fig, ax
 
     def add_website_data(self, ids=None):
-        # import json
+        """Pull light curve data from neo-bolide.ndc.nasa.gov.
+
+        Downloads light curve data from neo-bolide.ndc.nasa.gov, placing it
+        into the BolideDataFrame as a column of `~lightkurve.LightCurveCollection` objects.
+        The column is named ``'lightcurves'``
+
+        Parameters
+        ----------
+        ids : list of str
+            Optional list of strings representing the bolide ID's that light curves are wanted for.
+            If not used, a light curve is added for every bolide in the BolideDataFrame.
+        """
+
         lclist = []
-        for num, row in self.iterrows():  # for each bolide
+        for num, row in tqdm(self.iterrows(), "Downloading data", total=len(self)):  # for each bolide
 
             # if a subset of ids was specified that excludes this row, skip.
             if ids is not None and row['_id'] not in ids:
@@ -1005,15 +1024,19 @@ class BolideDataFrame(GeoDataFrame):
     def _constructor(self):
         return BolideDataFrame
 
+    # define how the BolideDataFrame renders in an IPython notebook
     def _repr_html_(self):
 
+        # want to show all columns
         with pd.option_context('display.max_columns', None):
+            # get the default representation from Pandas
             df_rep = super()._repr_html_()
 
-        good_sources = ['website', 'usg', 'pipeline']
+        good_sources = ['glm', 'usg', 'glm-pipeline']
 
         attribution = ""
 
+        # get the attribution HTML file
         if 'source' in self.columns and len(self) > 0:
             source = self['source'].iloc[0]
             if source in good_sources:

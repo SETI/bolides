@@ -55,3 +55,4 @@ Data Manipulation
    :toctree: api/
 
    BolideDataFrame.augment
+   BolideDataFrame.add_website_data
