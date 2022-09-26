@@ -82,10 +82,10 @@ class BolideDataFrame(GeoDataFrame):
         if source not in valid_sources:
             raise ValueError("Source \""+str(source)+"\" is unsupported. Please use one of "+str(valid_sources))
 
-        if source in ['pickle', 'csv', 'pipeline'] and files is None:
+        if source in ['pickle', 'csv', 'glm-pipeline', 'pipeline'] and files is None:
             raise ValueError("Files must be specified for the given source \""+source+"\"")
 
-        if source in ['pickle', 'csv', 'pipeline'] and not all([os.path.isfile(f) for f in files]):
+        if source in ['pickle', 'csv', 'glm-pipeline', 'pipeline'] and not all([os.path.isfile(f) for f in files]):
             paths = "\n".join([os.path.abspath(f) for f in files])
             raise ValueError("At least one of the files specified does not exist.\
                              Here are their absolute paths:\n"+paths)

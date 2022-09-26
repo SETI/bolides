@@ -1,15 +1,15 @@
 column,sources,description
-datetime,glm,Date and time of the first data point in the GLM time series for the bolide detection (UTC)
-datetime,usg,Date and time of the peak brightness of the bolide detection (UTC)
-datetime,pipeline,Date and time of the bolide detection (UTC)
+datetime,glm,Date and time of the first data point in the GLM time series for the bolide detection (UTC).
+datetime,usg,Date and time of the peak brightness of the bolide detection (UTC).
+datetime,glm-pipeline,Date and time of the bolide detection (UTC).
 longitude,glm,Longitude of the first data point in the GLM time series for the bolide detection (°E).
 latitude,glm,Latitude of the first data point in the GLM time series for the bolide detection (°N).
 longitude,usg,Longitude of the bolide detection (°E).
 latitude,usg,Latitude of the bolide detection (°N).
-longitude,pipeline,Longitude of the bolide detection (°E).
-latitude,pipeline,Latitude of the bolide detection (°N).
+longitude,glm-pipeline,Longitude of the bolide detection (°E).
+latitude,glm-pipeline,Latitude of the bolide detection (°N).
 source,all,Source of the data.
-energy,usg,The approximate total radiated energy in the atmosphere (J)
+energy,usg,The approximate total radiated energy in the atmosphere (J).
 impact-e,usg,The impact energy of the event (kt) computed from an empirical expression relating radiated and impact energy.
 alt,usg,Altitude in kilometers (km) above the reference geoid for the bolide detection.
 vel,usg,The magnitude of the bolide’s pre-impact velocity (km/s).
@@ -23,7 +23,7 @@ brightness_g17,glm,Uncalibrated peak brightness of the bolide as viewed from GOE
 brightness_cat_g16,glm,Brightness category of the bolide as viewed from GOES-16.
 brightness_cat_g17,glm,Brightness category of the bolide as viewed from GOES-17.
 _id,glm,Unique identifier assigned to the bolide at neo-bolide.ndc.nasa.gov.
-description,glm,A human-written description of the bolide detection
+description,glm,A human-written description of the bolide detection.
 groundTrack,glm,"Dict stating, for each sensor, whether or not the bolide was present in more than one pixel, and how far the bolide went."
 howFound,glm,The computational method used to find the bolide.
 otherDetectingSources,glm,Other non-GLM sources which the bolide is present in.
@@ -59,4 +59,4 @@ moon_fullness,all,"How full the moon was at the time of the bolide detection. 0=
 solarhour,all,The local solar time of the bolide detection.
 sun_alt_obs,all,The observed (including refraction) altitude of the sun (°) for an observer at sea level at the time and place (altitude 0 ASL) of the bolide detection.
 sun_alt_app,all,The apparent (excluding refraction) altitude of the sun (°) for an observer at sea level at the time and place of the bolide detection.
-date_retrieved,all,Date that the data was retrieved from the source (UTC)
+date_retrieved,all,Date that the data was retrieved from the source (UTC).
