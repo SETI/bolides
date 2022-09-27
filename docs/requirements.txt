@@ -1,0 +1,14 @@
+numpy
+numpydoc
+nbsphinx
+pydata-sphinx-theme
+cartopy==0.18.0
+shapely
+pandas
+matplotlib
+geopandas
+lightkurve
+scikit-learn
+astropy
+plotly
+poliastro

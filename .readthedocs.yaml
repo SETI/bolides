@@ -1,0 +1,26 @@
+# Required
+version: 2
+
+# Set the version of Python
+build:
+  os: ubuntu-20.04
+  apt_packages:
+    - proj-bin
+    - libproj-dev
+    - libgeos-dev
+  tools:
+    python: "3.9"
+  jobs:
+    pre_install:
+      - pip install numpy
+    post_install:
+      - pip install .
+
+# Build documentation in the docs/ directory with Sphinx
+sphinx:
+   configuration: docs/conf.py
+
+# Specify requirements
+python:
+   install:
+   - requirements: docs/requirements.txt

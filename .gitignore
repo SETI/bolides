@@ -1,3 +1,11 @@
+notebooks/*
+*.csv
+*.ipynb
+*/_spacekit.js
+.bolides-venv
+docs/reference/api
+.flake8
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

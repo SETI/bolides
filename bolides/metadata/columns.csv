@@ -1,0 +1,62 @@
+column,sources,description
+datetime,glm,Date and time of the first data point in the GLM time series for the bolide detection (UTC).
+datetime,usg,Date and time of the peak brightness of the bolide detection (UTC).
+datetime,glm-pipeline,Date and time of the bolide detection (UTC).
+longitude,glm,Longitude of the first data point in the GLM time series for the bolide detection (°E).
+latitude,glm,Latitude of the first data point in the GLM time series for the bolide detection (°N).
+longitude,usg,Longitude of the bolide detection (°E).
+latitude,usg,Latitude of the bolide detection (°N).
+longitude,glm-pipeline,Longitude of the bolide detection (°E).
+latitude,glm-pipeline,Latitude of the bolide detection (°N).
+source,all,Source of the data.
+energy,usg,The approximate total radiated energy in the atmosphere (J).
+impact-e,usg,The impact energy of the event (kt) computed from an empirical expression relating radiated and impact energy.
+alt,usg,Altitude in kilometers (km) above the reference geoid for the bolide detection.
+vel,usg,The magnitude of the bolide’s pre-impact velocity (km/s).
+detectedBy,glm,Satellite(s) that detected the bolide.
+confidenceRating,glm,Human-assigned confidence rating for the detection being a bolide.
+lightcurveStructure,glm,Human-assigned description of how bolide-like the observed light curve is.
+energy_g16,glm,Uncalibrated peak energy of the bolide as viewed from GOES-16.
+energy_g17,glm,Uncalibrated peak energy of the bolide as viewed from GOES-17.
+brightness_g16,glm,Uncalibrated peak brightness of the bolide as viewed from GOES-16.
+brightness_g17,glm,Uncalibrated peak brightness of the bolide as viewed from GOES-17.
+brightness_cat_g16,glm,Brightness category of the bolide as viewed from GOES-16.
+brightness_cat_g17,glm,Brightness category of the bolide as viewed from GOES-17.
+_id,glm,Unique identifier assigned to the bolide at neo-bolide.ndc.nasa.gov.
+description,glm,A human-written description of the bolide detection.
+groundTrack,glm,"Dict stating, for each sensor, whether or not the bolide was present in more than one pixel, and how far the bolide went."
+howFound,glm,The computational method used to find the bolide.
+otherDetectingSources,glm,Other non-GLM sources which the bolide is present in.
+otherInformation,glm,Human-written notes on the bolide detection.
+nearbyLightningActivity,glm,Human-assigned description of how much lightning activity there was nearby at the time of the bolide detection.
+status,glm,Publication status of the bolide.
+attachments,glm,List of dicts containing extra data from the bolide detection.
+name,glm,"Name of the bolide, if it has been named in the media."
+duration,glm,The duration of the 3D box containing the bolide.
+latitudeDelta,glm,The latitudinal span of the 3D box containing the bolide.
+longitudeDelta,glm,The longitudinal span of the 3D box containing the bolide.
+beginningAltitude,glm,
+lastModifiedBy,glm,
+lastModifiedDate,glm,
+enteredBy,glm,
+enteredDate,glm,
+createdAt,glm,
+updatedAt,glm,
+__v,glm,
+submittedBy,glm,
+submittedDate,glm,
+publishedBy,glm,
+publishedDate,glm,
+images,glm,Paths to images of the bolide detection at neo-bolide.ndc.nasa.gov.
+csv,glm,Paths to csv files of the bolide detection at neo-bolide.ndc.nasa.gov.
+platform,glm,
+reason,glm,
+rejectedBy,glm,
+rejectedDate,glm,
+geometry,all,Shapely Point object representing the bolide's location on the globe.
+phase,all,"The phase of the moon at the time of the bolide detection. 0=new moon, 0.5=full moon, 0.999=almost new moon."
+moon_fullness,all,"How full the moon was at the time of the bolide detection. 0=new moon, 1=full moon. ~0.25=waxing or waning crescent"
+solarhour,all,The local solar time of the bolide detection.
+sun_alt_obs,all,The observed (including refraction) altitude of the sun (°) for an observer at sea level at the time and place (altitude 0 ASL) of the bolide detection.
+sun_alt_app,all,The apparent (excluding refraction) altitude of the sun (°) for an observer at sea level at the time and place of the bolide detection.
+date_retrieved,all,Date that the data was retrieved from the source (UTC).

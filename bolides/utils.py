@@ -1,3 +1,32 @@
+from shapely.geometry import Point
+
+
+class Wrapper():
+    """Wrapper class for loading from pickled pipeline data"""
+    def __init__(self):
+        pass
+
+
+def make_points(lons, lats):
+    """Make Shapely Point objects from lists of longitudes and latitudes"""
+    coords = zip(lons, lats)
+    points = [Point(coord[0], coord[1]) for coord in coords]
+    return points
+
+
+def reconcile_input(user_input, defaults):
+    for key, value in defaults.items():
+        if key not in user_input:
+            user_input[key] = value
+
+    return user_input
+
+
+def str_to_list(string):
+    string = string.strip('[]')
+    if string == '':
+        return []
+    return string.split(', ')
 
 
 def youtube_photometry(video):

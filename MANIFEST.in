@@ -1,0 +1,3 @@
+include bolides/data/*
+include bolides/data/*/*
+include bolides/metadata/*
