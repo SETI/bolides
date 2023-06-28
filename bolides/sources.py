@@ -17,7 +17,7 @@ def glm_website():
 
     # create DataFrame using JSON data
     df = pd.DataFrame(json['data'])
-    df["datetime"] = df["datetime"].astype("datetime64")
+    df["datetime"] = pd.to_datetime(df["datetime"])
 
     # add bolide energy data
     energy_g16 = []
@@ -80,6 +80,7 @@ def usg():
     df['longitude'] = df['lon'].astype(float) * ((df['lon-dir'] == 'E') * 2 - 1)
     del df['lat'], df['lon'], df['lat-dir'], df['lon-dir']
     df['datetime'] = [datetime.fromisoformat(date) for date in df['date']]
+    df['datetime'] = df['datetime'].dt.tz_localize('UTC')
     del df['date']
     numeric_cols = ['energy', 'impact-e', 'alt', 'vel', 'vx', 'vy', 'vz']
     for col in numeric_cols:
@@ -117,6 +118,7 @@ def pipeline(files, min_confidence=0):
     column_translation = {'avgLon': 'longitude', 'avgLat': 'latitude', 'bolideTime': 'datetime',
                           'timeDuration': 'duration', 'goesSatellite': 'detectedBy'}
     df = df.rename(columns=column_translation)
+    df['datetime'] = df['datetime'].dt.tz_localize('UTC')
 
     gdf = add_geometry(df)
 
@@ -172,7 +174,7 @@ def gmn(date, loc_mode='begin'):
     df = pd.read_csv(buf, sep=';')
     df.columns = header
 
-    df['datetime'] = pd.to_datetime(df['datetime'])
+    df['datetime'] = pd.to_datetime(df['datetime'], utc=True, format='ISO8601')
     if loc_mode == 'begin':
         df['latitude'] = df.LatBeg
         df['longitude'] = df.LonBeg
@@ -199,10 +201,12 @@ def gmn(date, loc_mode='begin'):
 
 def csv(file):
     df = pd.read_csv(file, index_col=0,
-                     parse_dates=['datetime'],
                      keep_default_na=False,
                      na_values='')
+    df['datetime'] = pd.to_datetime(df['datetime'], utc=True, format='ISO8601')
 
+    if df['datetime'].dt.tz is None:
+        df['datetime'] = df['datetime'].dt.tz_localize('UTC')
     gdf = add_geometry(df)
     return gdf
 
