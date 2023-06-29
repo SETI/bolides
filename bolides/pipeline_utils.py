@@ -47,8 +47,16 @@ def dict_from_zodb(files, min_confidence):
                 g16 = add_key_suffix(g16, '_g16')
                 g17 = add_key_suffix(g17, '_g17')
 
-                # append a dict combining all of these to the list of dicts
-                list_of_dicts.append(dict(data0, **features, **g16, **g17))
+                # Add G18 data only if available in order to support legacy databases
+                if 'G18' in stereoFeatures:
+                    g18 = dict_from_obj(stereoFeatures['G18'], broken)
+                    g18 = add_key_suffix(g18, '_g18')
+                    # append a dict combining all of these to the list of dicts
+                    list_of_dicts.append(dict(data0, **features, **g16, **g17, **g18))
+                else:
+                    # append a dict combining all of these to the list of dicts
+                    list_of_dicts.append(dict(data0, **features, **g16, **g17))
+
 
             # minimize the cache a few times while running
             if count % (total//10) == 0:
