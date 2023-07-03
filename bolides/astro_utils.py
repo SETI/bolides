@@ -115,8 +115,11 @@ def sol_lon_to_datetime(lon, year):
     JD = sol_lon_to_jd(lon, year)
     t = Time(JD, format='jd', scale='utc')
     dt = t.datetime
+
+    # make the UTC datetime timezone-aware
     utc = timezone('UTC')
     dt = utc.localize(dt)
+
     return dt
 
 

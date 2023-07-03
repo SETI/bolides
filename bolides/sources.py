@@ -80,6 +80,7 @@ def usg():
     df['longitude'] = df['lon'].astype(float) * ((df['lon-dir'] == 'E') * 2 - 1)
     del df['lat'], df['lon'], df['lat-dir'], df['lon-dir']
     df['datetime'] = [datetime.fromisoformat(date) for date in df['date']]
+    # localize to UTC, as that is how USG datetimes are reported
     df['datetime'] = df['datetime'].dt.tz_localize('UTC')
     del df['date']
     numeric_cols = ['energy', 'impact-e', 'alt', 'vel', 'vx', 'vy', 'vz']
@@ -174,6 +175,8 @@ def gmn(date, loc_mode='begin'):
     df = pd.read_csv(buf, sep=';')
     df.columns = header
 
+    # convert the strings to datetimes in UTC. If the strings have timezone information,
+    # they will be converted to UTC, otherwise they are assumed to be in UTC.
     df['datetime'] = pd.to_datetime(df['datetime'], utc=True, format='ISO8601')
     if loc_mode == 'begin':
         df['latitude'] = df.LatBeg
@@ -203,10 +206,11 @@ def csv(file):
     df = pd.read_csv(file, index_col=0,
                      keep_default_na=False,
                      na_values='')
+
+    # convert the strings to datetimes in UTC. If the strings have timezone information,
+    # they will be converted to UTC, otherwise they are assumed to be in UTC.
     df['datetime'] = pd.to_datetime(df['datetime'], utc=True, format='ISO8601')
 
-    if df['datetime'].dt.tz is None:
-        df['datetime'] = df['datetime'].dt.tz_localize('UTC')
     gdf = add_geometry(df)
     return gdf
 

@@ -213,6 +213,7 @@ class BolideDataFrame(GeoDataFrame):
         ----------
         start, end: str
             ISO-format strings that can be read by `~datetime.datetime.fromisoformat`.
+            If the timezone is not specified, it is assumed to be in UTC.
         inplace: bool
             If True, the `~BolideDataFrame` of this method is altered. If False, it is not, so the returned
             `~BolideDataFrame` must be used.
@@ -226,8 +227,12 @@ class BolideDataFrame(GeoDataFrame):
         # drop data before start date, if specified
         if start is not None:
             dt = datetime.fromisoformat(start)
+
+            # if timezone not given, make the datetime timezone-aware
+            # with UTC assumed as the timezone
             if dt.tzname() == None:
                 dt = utc.localize(dt)
+
             to_drop = self.datetime < dt
             new_bdf = new_bdf.drop(new_bdf.index[to_drop], inplace=inplace)
         if inplace:
@@ -235,8 +240,12 @@ class BolideDataFrame(GeoDataFrame):
         # drop data after end date, if specified
         if end is not None:
             dt = datetime.fromisoformat(end)
+
+            # if timezone not given, make the datetime timezone-aware
+            # with UTC assumed as the timezone
             if dt.tzname() == None:
                 dt = utc.localize(dt)
+
             to_drop = new_bdf.datetime > dt
             new_bdf = new_bdf.drop(new_bdf.index[to_drop], inplace=inplace)
         if inplace:
@@ -255,6 +264,7 @@ class BolideDataFrame(GeoDataFrame):
         ----------
         datestr : str
             ISO-format string that can be read by `~datetime.datetime.fromisoformat`.
+            If the timezone is not specified, it is assumed to be in UTC.
         n : int
             Number of closest detections to return.
 
@@ -266,8 +276,12 @@ class BolideDataFrame(GeoDataFrame):
         """
 
         dt = datetime.fromisoformat(datestr)
+
+        # if timezone not given, make the datetime timezone-aware
+        # with UTC assumed as the timezone
         if dt.tzname() == None:
             dt = utc.localize(dt)
+
         return self.iloc[(self['datetime'] - dt).abs().argsort()].head(n)
 
     def get_closest_by_loc(self, lon, lat, n=1):
