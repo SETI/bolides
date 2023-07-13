@@ -7,6 +7,9 @@ import astropy.units as u
 from astropy.coordinates import ICRS, SkyCoord
 from astropy.time import Time
 
+from pytz import timezone
+utc = timezone('UTC')
+
 
 def get_phase(datetime):
     """Get lunar phase (0.01=new moon just happened, 0.99=new moon about to happen)"""
@@ -111,7 +114,13 @@ def sol_lon_to_datetime(lon, year):
 
     JD = sol_lon_to_jd(lon, year)
     t = Time(JD, format='jd', scale='utc')
-    return t.datetime
+    dt = t.datetime
+
+    # make the UTC datetime timezone-aware
+    utc = timezone('UTC')
+    dt = utc.localize(dt)
+
+    return dt
 
 
 def sol_lon_to_jd(lon, year):

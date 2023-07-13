@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta
+from pytz import timezone
 import requests
 from warnings import warn, filterwarnings
 from tqdm import tqdm
@@ -23,6 +24,7 @@ _FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
                'energy', 'energy_g16', 'energy_g17', 'brightness_g16', 'brightness_g17',
                'brightness_cat_g16', 'brightness_cat_g17', 'impact-e', 'alt', 'vel']
 
+utc = timezone('UTC')
 
 class BolideDataFrame(GeoDataFrame):
     """
@@ -211,6 +213,7 @@ class BolideDataFrame(GeoDataFrame):
         ----------
         start, end: str
             ISO-format strings that can be read by `~datetime.datetime.fromisoformat`.
+            If the timezone is not specified, it is assumed to be in UTC.
         inplace: bool
             If True, the `~BolideDataFrame` of this method is altered. If False, it is not, so the returned
             `~BolideDataFrame` must be used.
@@ -223,13 +226,27 @@ class BolideDataFrame(GeoDataFrame):
 
         # drop data before start date, if specified
         if start is not None:
-            to_drop = self.datetime < datetime.fromisoformat(start)
-            new_bdf = self.drop(self.index[to_drop], inplace=inplace)
+            dt = datetime.fromisoformat(start)
+
+            # if timezone not given, make the datetime timezone-aware
+            # with UTC assumed as the timezone
+            if dt.tzname() == None:
+                dt = utc.localize(dt)
+
+            to_drop = self.datetime < dt
+            new_bdf = new_bdf.drop(new_bdf.index[to_drop], inplace=inplace)
         if inplace:
             new_bdf = self
         # drop data after end date, if specified
         if end is not None:
-            to_drop = new_bdf.datetime > datetime.fromisoformat(end)
+            dt = datetime.fromisoformat(end)
+
+            # if timezone not given, make the datetime timezone-aware
+            # with UTC assumed as the timezone
+            if dt.tzname() == None:
+                dt = utc.localize(dt)
+
+            to_drop = new_bdf.datetime > dt
             new_bdf = new_bdf.drop(new_bdf.index[to_drop], inplace=inplace)
         if inplace:
             new_bdf = self
@@ -247,6 +264,7 @@ class BolideDataFrame(GeoDataFrame):
         ----------
         datestr : str
             ISO-format string that can be read by `~datetime.datetime.fromisoformat`.
+            If the timezone is not specified, it is assumed to be in UTC.
         n : int
             Number of closest detections to return.
 
@@ -258,6 +276,12 @@ class BolideDataFrame(GeoDataFrame):
         """
 
         dt = datetime.fromisoformat(datestr)
+
+        # if timezone not given, make the datetime timezone-aware
+        # with UTC assumed as the timezone
+        if dt.tzname() == None:
+            dt = utc.localize(dt)
+
         return self.iloc[(self['datetime'] - dt).abs().argsort()].head(n)
 
     def get_closest_by_loc(self, lon, lat, n=1):
