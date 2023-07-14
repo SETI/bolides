@@ -5,9 +5,11 @@ import requests
 from io import StringIO
 from tqdm import tqdm
 
-from . import API_ENDPOINT_EVENTLIST
+from . import API_ENDPOINT_EVENTLIST, API_ENDPOINT_EVENT
 from .utils import make_points
 from datetime import datetime
+
+from lightkurve import LightCurve, LightCurveCollection
 
 
 def glm_website():
@@ -19,37 +21,17 @@ def glm_website():
     df = pd.DataFrame(json['data'])
     df["datetime"] = pd.to_datetime(df["datetime"])
 
-    # add bolide energy data
-    energy_g16 = []
-    energy_g17 = []
-    for ats in df.attachments:
-        e_g16 = 0
-        e_g17 = 0
-        for at in ats:
-            platform = at['platformId']
-            energy = at['energy']
-            if platform == 'G16':
-                e_g16 += energy
-            if platform == 'G17':
-                e_g17 += energy
-        if e_g16 == 0:
-            e_g16 = np.nan
-        if e_g17 == 0:
-            e_g17 = np.nan
-        energy_g16.append(e_g16)
-        energy_g17.append(e_g17)
-    df['energy_g16'] = energy_g16
-    df['energy_g17'] = energy_g17
-
     # add bolide brightness data
     brightness_cat_g16 = []
     brightness_g16 = []
     brightness_cat_g17 = []
     brightness_g17 = []
-    val_cols = {'GLM-16': brightness_g16, 'GLM-17': brightness_g17}
-    cat_cols = {'GLM-16': brightness_cat_g16, 'GLM-17': brightness_cat_g17}
+    brightness_cat_g18 = []
+    brightness_g18 = []
+    val_cols = {'GLM-16': brightness_g16, 'GLM-17': brightness_g17, 'GLM-18': brightness_g18}
+    cat_cols = {'GLM-16': brightness_cat_g16, 'GLM-17': brightness_cat_g17, 'GLM-18': brightness_cat_g18}
     for brightness in df.brightness:
-        for sat in ['GLM-16', 'GLM-17']:
+        for sat in ['GLM-16', 'GLM-17', 'GLM-18']:
             if sat in brightness:
                 cat_cols[sat].append(brightness[sat]['category'])
                 val_cols[sat].append(brightness[sat]['value'])
@@ -60,6 +42,8 @@ def glm_website():
     df['brightness_g16'] = brightness_g16
     df['brightness_cat_g17'] = brightness_cat_g17
     df['brightness_g17'] = brightness_g17
+    df['brightness_cat_g18'] = brightness_cat_g18
+    df['brightness_g18'] = brightness_g18
     del df['brightness']
 
     gdf = add_geometry(df)
@@ -244,3 +228,60 @@ def add_geometry(df, lat_col='latitude', lon_col='longitude'):
 
     gdf = GeoDataFrame(df, geometry=points, crs="EPSG:4326")
     return gdf
+
+
+def glm_website_event(ids):
+    """Pull individual bolide data from neo-bolide.ndc.nasa.gov by ID
+
+    Downloads light curve and energy data from neo-bolide.ndc.nasa.gov, placing it into
+    a dict of lists.
+
+    Parameters
+    ----------
+    ids: list of str
+        List of strings representing the bolide ID's that data are obtained for.
+    """
+
+    # dict to store returned data
+    data = {'energy_g16': [], 'energy_g17': [], 'energy_g18': [], 'lightcurves': []}
+
+    for bid in tqdm(ids, "Downloading data"):  # for each bolide
+
+        # pull data from website
+        web_data = requests.get(API_ENDPOINT_EVENT + bid).json()['data'][0]['attachments']
+        row_lcs = []
+
+        # dict to store integrated energies for this event
+        integrated_energies = {'g16': 0, 'g17': 0, 'g18': 0}
+
+        # loop over the attachments returned in the data
+        for attachment in web_data:
+
+            # get the satellite ID and geodata
+            platform = attachment['platformId']
+            geodata = attachment['geoData']
+
+            # obtain flux from the geodata, and sum it up to get
+            # integrated energy
+            flux = [point['energy'] for point in geodata]
+            integrated_energies[platform.lower()] += np.sum(flux)
+
+            # obtain times (seconds) from the geodata
+            time = [point['time']/1000 for point in geodata]
+
+            # create a LightCurve object
+            from astropy.time import Time
+            time_obj = Time(time, format='unix')
+            lc = LightCurve(time=time_obj, flux=flux)
+            lc.meta['MISSION'] = platform
+            lc.meta['LABEL'] = platform
+            row_lcs.append(lc)
+
+        # create a LightCurveCollection using the invididual LightCurves
+        data['lightcurves'].append(LightCurveCollection(row_lcs))
+
+        # enter the integrated energy into the data dict
+        for sat, value in integrated_energies.items():
+            data[f'energy_{sat}'].append(value)
+
+    return data
