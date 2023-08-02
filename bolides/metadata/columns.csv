@@ -16,12 +16,15 @@ vel,usg,The magnitude of the bolide’s pre-impact velocity (km/s).
 detectedBy,glm,Satellite(s) that detected the bolide.
 confidenceRating,glm,Human-assigned confidence rating for the detection being a bolide.
 lightcurveStructure,glm,Human-assigned description of how bolide-like the observed light curve is.
-energy_g16,glm,Uncalibrated peak energy of the bolide as viewed from GOES-16.
-energy_g17,glm,Uncalibrated peak energy of the bolide as viewed from GOES-17.
-brightness_g16,glm,Uncalibrated peak brightness of the bolide as viewed from GOES-16.
-brightness_g17,glm,Uncalibrated peak brightness of the bolide as viewed from GOES-17.
-brightness_cat_g16,glm,Brightness category of the bolide as viewed from GOES-16.
-brightness_cat_g17,glm,Brightness category of the bolide as viewed from GOES-17.
+integrated_energy_g16,glm,Uncalibrated integrated energy of the bolide as viewed from GOES-16.
+integrated_energy_g17,glm,Uncalibrated integrated energy of the bolide as viewed from GOES-17.
+integrated_energy_g18,glm,Uncalibrated integrated energy of the bolide as viewed from GOES-18.
+peak_energy_g16,glm,Uncalibrated peak energy (median of top 5 points) of the bolide as viewed from GOES-16.
+peak_energy_g17,glm,Uncalibrated peak energy (median of top 5 points) of the bolide as viewed from GOES-17.
+peak_energy_g18,glm,Uncalibrated peak energy (median of top 5 points) of the bolide as viewed from GOES-18.
+peak_energy_cat_g16,glm,Peak energy category of the bolide as viewed from GOES-16.
+peak_energy_cat_g17,glm,Peak energy category of the bolide as viewed from GOES-17.
+peak_energy_cat_g18,glm,Peak energy category of the bolide as viewed from GOES-18.
 _id,glm,Unique identifier assigned to the bolide at neo-bolide.ndc.nasa.gov.
 description,glm,A human-written description of the bolide detection.
 groundTrack,glm,"Dict stating, for each sensor, whether or not the bolide was present in more than one pixel, and how far the bolide went."

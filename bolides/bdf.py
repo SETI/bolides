@@ -18,10 +18,10 @@ from .utils import reconcile_input
 from .sources import glm_website, usg, pipeline, gmn, csv, remote
 
 _FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
-               'confidenceRating', 'confidence', 'lightcurveStructure',
-               'energy', 'energy_g16', 'energy_g17', 'energy_g18',
-               'brightness_g16', 'brightness_g17', 'brightness_g18',
-               'brightness_cat_g16', 'brightness_cat_g17', 'brightness_cat_g18',
+               'confidenceRating', 'confidence', 'lightcurveStructure', 'energy',
+               'integrated_energy_g16', 'integrated_energy_g17', 'integrated_energy_g18',
+               'peak_energy_g16', 'peak_energy_g17', 'peak_energy_g18',
+               'peak_energy_cat_g16', 'peak_energy_cat_g17', 'peak_energy_cat_g18',
                'impact-e', 'alt', 'vel']
 
 utc = timezone('UTC')
@@ -945,25 +945,25 @@ class BolideDataFrame(GeoDataFrame):
 
         # if there is no _id column, we can't associate the website data to
         # the bolides in the BolideDataFrame
-        assert '_id' in self.columns
+        assert '_id' in self.columns, "BolideDataFrame must have an '_id' column"
 
         # check that ids is not a single string
-        assert type(ids) is not str
+        assert type(ids) is not str, "Input must be must be a list"
 
         # make ids a List if it is an iterable
         if hasattr(ids, '__iter__'):
             ids = list(ids)
 
             # check that all the given ids actually exist
-            assert all([_id in list(self._id) for _id in ids])
+            assert all([_id in list(self._id) for _id in ids]), "All given IDs must exist in the BolideDataFrame"
 
         # if no ids are given, we assume that we will obtain website data for each
         # event in the BolideDataFrame
         if ids == None:
             ids = list(self._id)
 
-        # at this point, unless the input was bad, ids should be a list
-        assert type(ids) is list
+        # at this point, unless the input was not iterable, ids should be a list
+        assert type(ids) is list, "Input must be a list"
 
         # get the data from the website by passing the ids
         from .sources import glm_website_event

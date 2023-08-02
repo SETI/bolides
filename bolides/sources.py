@@ -22,14 +22,19 @@ def glm_website():
     df["datetime"] = pd.to_datetime(df["datetime"])
 
     # add bolide brightness data
-    brightness_cat_g16 = []
-    brightness_g16 = []
-    brightness_cat_g17 = []
-    brightness_g17 = []
-    brightness_cat_g18 = []
-    brightness_g18 = []
-    val_cols = {'GLM-16': brightness_g16, 'GLM-17': brightness_g17, 'GLM-18': brightness_g18}
-    cat_cols = {'GLM-16': brightness_cat_g16, 'GLM-17': brightness_cat_g17, 'GLM-18': brightness_cat_g18}
+    peak_energy_cat_g16 = []
+    peak_energy_g16 = []
+    peak_energy_cat_g17 = []
+    peak_energy_g17 = []
+    peak_energy_cat_g18 = []
+    peak_energy_g18 = []
+    val_cols = {'GLM-16': peak_energy_g16,
+                'GLM-17': peak_energy_g17,
+                'GLM-18': peak_energy_g18}
+    cat_cols = {'GLM-16': peak_energy_cat_g16,
+                'GLM-17': peak_energy_cat_g17,
+                'GLM-18': peak_energy_cat_g18}
+
     for brightness in df.brightness:
         for sat in ['GLM-16', 'GLM-17', 'GLM-18']:
             if sat in brightness:
@@ -38,12 +43,14 @@ def glm_website():
             else:
                 cat_cols[sat].append("")
                 val_cols[sat].append(np.nan)
-    df['brightness_cat_g16'] = brightness_cat_g16
-    df['brightness_g16'] = brightness_g16
-    df['brightness_cat_g17'] = brightness_cat_g17
-    df['brightness_g17'] = brightness_g17
-    df['brightness_cat_g18'] = brightness_cat_g18
-    df['brightness_g18'] = brightness_g18
+
+    df['peak_energy_cat_g16'] = peak_energy_cat_g16
+    df['peak_energy_g16'] = peak_energy_g16
+    df['peak_energy_cat_g17'] = peak_energy_cat_g17
+    df['peak_energy_g17'] = peak_energy_g17
+    df['peak_energy_cat_g18'] = peak_energy_cat_g18
+    df['peak_energy_g18'] = peak_energy_g18
+
     del df['brightness']
 
     gdf = add_geometry(df)
@@ -243,7 +250,7 @@ def glm_website_event(ids):
     """
 
     # dict to store returned data
-    data = {'energy_g16': [], 'energy_g17': [], 'energy_g18': [], 'lightcurves': []}
+    data = {'integrated_energy_g16': [], 'integrated_energy_g17': [], 'integrated_energy_g18': [], 'lightcurves': []}
 
     for bid in tqdm(ids, "Downloading data"):  # for each bolide
 
@@ -252,7 +259,8 @@ def glm_website_event(ids):
         row_lcs = []
 
         # dict to store integrated energies for this event
-        integrated_energies = {'g16': 0, 'g17': 0, 'g18': 0}
+        # initialize as nan to represent lack of data
+        integrated_energies = {'g16': np.nan, 'g17': np.nan, 'g18': np.nan}
 
         # loop over the attachments returned in the data
         for attachment in web_data:
@@ -260,6 +268,10 @@ def glm_website_event(ids):
             # get the satellite ID and geodata
             platform = attachment['platformId']
             geodata = attachment['geoData']
+
+            # since there is data for this satellite, set to zero if nan
+            if integrated_energies[platform.lower()] is np.nan:
+                integrated_energies[platform.lower()] = 0
 
             # obtain flux from the geodata, and sum it up to get
             # integrated energy
@@ -282,6 +294,6 @@ def glm_website_event(ids):
 
         # enter the integrated energy into the data dict
         for sat, value in integrated_energies.items():
-            data[f'energy_{sat}'].append(value)
+            data[f'integrated_energy_{sat}'].append(value)
 
     return data
