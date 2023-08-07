@@ -1,7 +1,6 @@
 import os
 from datetime import datetime, timedelta
 from pytz import timezone
-import requests
 from warnings import warn, filterwarnings
 from tqdm import tqdm
 
@@ -13,16 +12,17 @@ from geopandas import GeoDataFrame
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from lightkurve import LightCurve, LightCurveCollection
 
-from . import API_ENDPOINT_EVENT, MPLSTYLE, ROOT_PATH
+from . import MPLSTYLE, ROOT_PATH
 from .utils import reconcile_input
 from .sources import glm_website, usg, pipeline, gmn, csv, remote
 
 _FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
-               'confidenceRating', 'confidence', 'lightcurveStructure',
-               'energy', 'energy_g16', 'energy_g17', 'brightness_g16', 'brightness_g17',
-               'brightness_cat_g16', 'brightness_cat_g17', 'impact-e', 'alt', 'vel']
+               'confidenceRating', 'confidence', 'lightcurveStructure', 'energy',
+               'integrated_energy_g16', 'integrated_energy_g17', 'integrated_energy_g18',
+               'peak_energy_g16', 'peak_energy_g17', 'peak_energy_g18',
+               'peak_energy_cat_g16', 'peak_energy_cat_g17', 'peak_energy_cat_g18',
+               'impact-e', 'alt', 'vel']
 
 utc = timezone('UTC')
 
@@ -927,43 +927,66 @@ class BolideDataFrame(GeoDataFrame):
         return fig, ax
 
     def add_website_data(self, ids=None):
-        """Pull light curve data from neo-bolide.ndc.nasa.gov.
+        """Pull light curve and integrated energy data from neo-bolide.ndc.nasa.gov.
 
         Downloads light curve data from neo-bolide.ndc.nasa.gov, placing it
         into the BolideDataFrame as a column of `~lightkurve.LightCurveCollection` objects.
-        The column is named ``'lightcurves'``
+        The column is named ``'lightcurves'``. Integrated energy data is also downloaded
+        for different satellites and placed into columns starting with ``'energy_'``.
+        This method will only work with BolideDataFrames having an ``_id`` column containing
+        IDs from GLM bolide detections at neo-bolide.ndc.nasa.gov.
 
         Parameters
         ----------
         ids : list of str
-            Optional list of strings representing the bolide ID's that light curves are wanted for.
-            If not used, a light curve is added for every bolide in the BolideDataFrame.
+            Optional list of strings representing the bolide ID's that additional data is
+            needed for. If not used, data is added for every bolide in the BolideDataFrame.
         """
 
-        lclist = []
-        for num, row in tqdm(self.iterrows(), "Downloading data", total=len(self)):  # for each bolide
+        # if there is no _id column, we can't associate the website data to
+        # the bolides in the BolideDataFrame
+        assert '_id' in self.columns, "BolideDataFrame must have an '_id' column"
 
-            # if a subset of ids was specified that excludes this row, skip.
-            if ids is not None and row['_id'] not in ids:
-                continue
+        # check that ids is not a single string
+        assert type(ids) is not str, "Input must be must be a list"
 
-            # pull data from website
-            data = requests.get(API_ENDPOINT_EVENT + row['_id']).json()['data'][0]['attachments']
-            row_lcs = []
+        # make ids a List if it is an iterable
+        if hasattr(ids, '__iter__'):
+            ids = list(ids)
 
-            # create a LightCurve for each attachment in the data
-            for attachment in data:
-                geodata = attachment['geoData']
-                flux = [point['energy'] for point in geodata]
-                time = [point['time']/1000 for point in geodata]
-                from astropy.time import Time
-                time_obj = Time(time, format='unix')
-                lc = LightCurve(time=time_obj, flux=flux)
-                lc.meta['MISSION'] = attachment['platformId']
-                lc.meta['LABEL'] = attachment['platformId']
-                row_lcs.append(lc)
-            lclist.append(LightCurveCollection(row_lcs))
-        self['lightcurves'] = lclist
+            # check that all the given ids actually exist
+            assert all([_id in list(self._id) for _id in ids]), "All given IDs must exist in the BolideDataFrame"
+
+        # if no ids are given, we assume that we will obtain website data for each
+        # event in the BolideDataFrame
+        if ids == None:
+            ids = list(self._id)
+
+        # at this point, unless the input was not iterable, ids should be a list
+        assert type(ids) is list, "Input must be a list"
+
+        # get the data from the website by passing the ids
+        from .sources import glm_website_event
+        data = glm_website_event(ids)
+
+        # initialize empty columns in the BolideDataFrame
+        cols = data.keys()
+        for col in cols:
+            if col == 'lightcurves':
+                self[col] = None
+            else:
+                self[col] = np.nan
+
+        # iterate through the list of ids, plugging the obtained data
+        # into the appropriate rows in the BolideDataFrame
+        for i, _id in enumerate(ids):
+
+            # find the row containing the id
+            idx = self.index[np.argmax(self._id == _id)]
+
+            # enter the data
+            for col in cols:
+                self.loc[idx, col] = data[col][i]
 
     # TODO: match on a column other than _id?
     def augment(self, new_data, time_limit=300, score_limit=5, intersection=False, outer=False):
