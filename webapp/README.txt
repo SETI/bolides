@@ -1,3 +1,21 @@
+Architecture Overview
+=====================
+The webapp (defined in app.py) is built using Dash, which itself is built on
+top of Plotly and Flask. The webapp makes heavy use of the bolides Python
+package for its data processing and some of its visualization. For this reason,
+when initially developed, the webapp was developed in the same repository as
+the Python package. Long-term, it may be beneficial to more cleanly separate
+these two projects.
+
+Running app.py creates a local instance of the webapp which should NOT be used
+in production. The real magic is done by Gunicorn, which uses WSGI to serve
+instances of the Flask app.
+
+The configuration settings provided here describe how to serve the app on
+Nginx, though in principle another webserver like Apache could be used.
+All Nginx does is listen for HTTP and HTTPS requests and pass them through
+to the location where Gunicorn is running on the host.
+
 Maintenance instructions, to run when git repository is updated:
 ================================================================
 MAKE SURE TO TEST AND DEBUG FIRST BY RUNNING app.py LOCALLY

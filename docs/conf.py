@@ -16,9 +16,11 @@ sys.path.insert(0, os.path.abspath('..'))
 
 
 # -- Project information -----------------------------------------------------
+# Feel free to add to the author if you make substantial contributions to the
+# docs!
 
 project = 'bolides'
-copyright = ''#2022, Anthony Ozerov and the NASA ATAP team'
+copyright = ''
 author = 'Anthony Ozerov and the NASA ATAP team'
 
 # The full version, including alpha/beta/rc tags

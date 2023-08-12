@@ -13,10 +13,10 @@ bolides
                 :target: https://pypi.org/project/bolides/
                 :alt: PyPI link
 .. |binder-badge| image:: https://mybinder.org/badge_logo.svg
-                :target: https://mybinder.org/v2/gh/jcsmithhere/bolides/master?labpath=notebooks%2Ftutorial.ipynb
+                :target: https://mybinder.org/v2/gh/SETI/bolides/master?labpath=notebooks%2Ftutorial.ipynb
                 :alt: Binder link
 
-.. image:: https://raw.githubusercontent.com/jcsmithhere/bolides/master/docs/preview.gif
+.. image:: https://raw.githubusercontent.com/SETI/bolides/master/docs/preview.gif
 
 ``bolides`` is a community package primarily designed to work with bolide detections from the Geostationary Lightning Mapper instruments aboard GOES-16 and GOES-17 that are published at `neo-bolide.ndc.nasa.gov <https://neo-bolide.ndc.nasa.gov>`_. But ``bolides`` can also read bolide data from ZODB database files produced by the GLM bolide detection pipeline, from `US Government sensors <https://cneos.jpl.nasa.gov/fireballs/>`_, and from your own .csv files containing bolide data.
 
@@ -48,7 +48,7 @@ Installation
 
 .. installation-start
 
-We want to make installation as easy as possible. If you have any problems with the installation process, please `open an issue <https://github.com/jcsmithhere/bolides/issues/new/choose>`_.
+We want to make installation as easy as possible. If you have any problems with the installation process, please `open an issue <https://github.com/SETI/bolides/issues/new/choose>`_.
 
 Dependencies
 ------------
@@ -66,7 +66,7 @@ The package
 
 While the package is still in development we recommend installing from source:
 
-#. Download this repository: ``git clone https://github.com/jcsmithhere/bolides.git``
+#. Download this repository: ``git clone https://github.com/SETI/bolides.git``
 #. Move into it: ``cd bolides``
 #. Install the package in editable mode: ``pip install -e .``
 
@@ -77,7 +77,7 @@ Once this package is on the Python Package Index, you can install via pip using 
 Tutorial
 ========
 
-For a usage tutorial, go `here <https://bolides.readthedocs.io/en/latest/tutorials>`_. An interactive version is hosted on `binder <https://mybinder.org/v2/gh/jcsmithhere/bolides/master?labpath=notebooks%2Ftutorial.ipynb>`_.
+For a usage tutorial, go `here <https://bolides.readthedocs.io/en/latest/tutorials>`_. An interactive version is hosted on `binder <https://mybinder.org/v2/gh/SETI/bolides/master?labpath=notebooks%2Ftutorial.ipynb>`_.
 
 .. start-after-here
 
@@ -85,6 +85,17 @@ Historical Note
 ===============
 
 The original version of ``bolides`` was developed by Clemens Rumpf and Geert Barentsen. It has been rewritten since then, but all of the original code and functionality is still present.
+
+Maintaining
+===========
+
+Several informational files are located throughout this repository to help in understanding and maintaining the package:
+
+- Uploading to the Python Package Index: `<PYPI.txt>`_
+- Documentation building: `<docs/README.txt>`_
+- Webapp setup and maintenance: `<webapp/README.txt>`_
+- Binder setup: `<binder/README.txt>`_
+
 
 Acknowledgments
 ===============
