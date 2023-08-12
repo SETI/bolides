@@ -1,0 +1,37 @@
+This file contains instructions for uploading to PyPI to make the package
+pip-installable. If you have any questions, contact Anthony Ozerov.
+
+To upload to the Python Package Index (PyPI), follow these steps:
+- Update the version number in pyproject.toml and docs/conf.py.
+  (bolides/version.py is an old file still hanging around which is probably
+  no longer needed)
+- Make sure the dependencies listed in pyproject.toml are up-to-date.
+- Feel free to add author information to pyproject.toml, docs/conf.py,
+  and AUTHORS
+- Test thoroughly!! Even if you tested before merging and stuff, before
+  publishing to PyPI everything should be extra perfect.
+  We still need a full test suite, but running through the tutorial notebook
+  covers most of the features. When uploading to PyPI, you should not only test
+  general package functions, but also the full installation pipeline by
+  trying a clean install of the package into a new environment following the
+  instructions as given in the package documentation.
+
+Now you are ready to upload to PyPI. If you would like to be extra sure,
+you can first upload to TestPyPI using the following command in the top-level
+repository directory:
+
+rm dist/*
+python -m build .
+twine upload --repository testpypi dist/* --verbose
+
+After doing this, you should try to install from this package into a clean
+environment, following the instructions in the package documentation but
+replacing the pip install with:
+
+pip install -i https://test.pypi.org/simple/ bolides --extra-index-url https://pypi.org/simple
+
+If everything seemed to go well, you can upload to PyPI:
+
+rm dist/*
+python -m build .
+twine upload dist/*

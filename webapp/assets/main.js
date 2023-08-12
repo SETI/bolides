@@ -1,7 +1,14 @@
+// Main javascript file for the orbit map
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/* Function which creates an observer to watch for changes
+ * to hidden orbital-elements div updated by the app.
+ * When it changes, it calls plotorbits() to update the orbits.
+ * It also sets up another observer to watch for changes to which
+ * tab is being displayed, and calls otherTabObserver() when that happens.*/
 console.log('setting up observer');
 function orbitTabObserver(){
     var update_time = 0;
@@ -42,8 +49,9 @@ function orbitTabObserver(){
     });
 }
 
-// observer to wait for a change to the orbit-map tab and plot orbits
-// when that happens
+/* Observer to wait for the orbit-map element to appear (which will happen
+ * when the tab is switchced to Orbits), plot the orbits, and go back to
+ * the orbitTabObserver. */
 function otherTabObserver(){
     // set up the mutation observer
     var observer = new MutationObserver(function (mutations, me) {
@@ -61,8 +69,12 @@ function otherTabObserver(){
       subtree: true
     });
 }
+
+// as we start on the Earth map tab, start the otherTabObserver.
 otherTabObserver()
 
+
+// function to plot the orbits on orbit-map.
 function plotorbits(){
 
 document.getElementById('orbit-map').innerHTML = "";
@@ -78,13 +90,6 @@ const viz = new Spacekit.Simulation(document.getElementById('orbit-map'), {
   },
 });
 console.log('viz created');
-
-// Create a skybox using NASA TYCHO artwork.
-//const skybox = viz.createStars();
-
-//const skybox = viz.createSkybox({
-//  textureUrl: '{{assets}}/skybox/nasa_tycho.jpg'
-//});
 
 // Create our first object - the sun - using a preset space object.
 const sun = viz.createObject('sun', Spacekit.SpaceObjectPresets.SUN);
@@ -117,9 +122,7 @@ for(const element of data){
 
     n = 0;//Math.pow(Math.abs(a), -3/2)
 
-    //if (e>0.95){
-    //    return;
-    //}
+    // create a Spacekit Ephem object containing the orbital elements
     const ephem = new Spacekit.Ephem({
         a: a,
         e: e,
@@ -134,6 +137,7 @@ for(const element of data){
         n: n
     });
 
+    // try to add the the ephemeris to the visualization
     try {
         viz.createObject(idx, {
             hideOrbit: false,
@@ -153,5 +157,4 @@ for(const element of data){
 
 console.log('orbits plotted');
 return viz;
-
 }
