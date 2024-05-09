@@ -470,10 +470,7 @@ class BolideDataFrame(GeoDataFrame):
             good_locs = counts == np.zeros(len(counts))
         return self[good_locs]
 
-    def plot_detections(self, crs=None,
-                        category=None, coastlines=True, style=MPLSTYLE,
-                        boundary=None, boundary_style={}, figsize=(8, 8),
-                        **kwargs):
+    def plot_detections(self, category=None, *args, **kwargs):
         """Plot detections of bolides.
 
         Reprojects the geometry of bdf to the crs given, and scatters the points
@@ -510,77 +507,15 @@ class BolideDataFrame(GeoDataFrame):
         fig : `~matplotlib.pyplot.figure`
         ax : `~cartopy.mpl.geoaxes.GeoAxesSubplot`
         """
-        from .crs import DefaultCRS
-        if crs is None:
-            crs = DefaultCRS()
 
-        # The cartopy library used by plot_detections currently has many
-        # warnings about the shapely library deprecating things...
-        # This code suppresses those warnings
-        filterwarnings("ignore", message="__len__ for multi-part")
-        filterwarnings("ignore", message="Iteration over multi-part")
+        # filter to only detections containing both latitude and longitude
+        bdf = self[(~self.latitude.isnull()) & (~self.longitude.isnull())]
 
-        import matplotlib.cm as cmx
+        if category is not None:
+            category = self[category]
 
-        # get geopandas projection and reproject dataframe points
-        crs_proj4 = crs.proj4_init
-        bdf_proj = self.to_crs(crs_proj4)
-        # filter out rows with no geometry
-
-        # default parameters put into kwargs if not specified by user
-        defaults = {'marker': '.', 'color': 'red', 'cmap': plt.get_cmap('viridis')}
-        if 'c' in kwargs:
-            del defaults['color']
-        kwargs = reconcile_input(kwargs, defaults)
-
-        good_locs = ~bdf_proj.geometry.is_empty
-        x = np.empty(len(bdf_proj))
-        y = np.empty(len(bdf_proj))
-        points = bdf_proj[good_locs]['geometry']
-        x[good_locs] = np.array([p.x for p in points])
-        y[good_locs] = np.array([p.y for p in points])
-
-        # using the given style,
-        with plt.style.context(style):
-
-            # generate Figure and GeoAxes with the given proejction
-            fig, ax = plt.subplots(subplot_kw={'projection': crs}, figsize=figsize)
-
-            ax.stock_img()  # plot background map
-
-            # scatter points, passing arguments through
-
-            if category is None:  # if there is no categorical variable specified
-                cb = plt.scatter(x, y, **kwargs)
-                # if color is determined by a quantitative variable, we add a colorbar
-                if 'c' in kwargs:
-                    plt.colorbar(cb, label=kwargs['c'].name)
-
-            else:  # if there is a categorical variable specified, color points using it
-                unique = self[category].unique()  # get the unique values of the variable
-                import matplotlib.colors as colors
-                hot = plt.get_cmap('tab10')
-                cNorm = colors.Normalize(vmin=0, vmax=len(unique))
-                scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=hot)
-
-                del kwargs['color']  # color kwarg being overridden by categorical variable
-                s = kwargs['s'] if 's' in kwargs else None
-
-                # for each unique category, scatter the data with the right color
-                for num, label in enumerate(unique):
-                    idx = self[category] == label
-                    if s is not None and hasattr(s, '__getitem__'):
-                        kwargs['s'] = s[idx]
-                    ax.scatter(x[idx], y[idx], color=scalarMap.to_rgba(num), label=label, **kwargs)
-                plt.legend()
-
-            if coastlines:
-                ax.coastlines()  # plot coastlines
-
-            # plot sensor FOV
-            from .fov_utils import add_boundary
-            if boundary:
-                add_boundary(ax, boundary, boundary_style)
+        from .plotting import plot_scatter
+        fig, ax = plot_scatter(bdf.latitude, bdf.longitude, category=category, *args, **kwargs)
 
         return fig, ax
 
@@ -664,11 +599,7 @@ class BolideDataFrame(GeoDataFrame):
         from .plotting import plot_interactive
         return plot_interactive(self, *args, **kwargs)
 
-    def plot_density(self, crs=None,
-                     bandwidth=5, coastlines=True, style=MPLSTYLE,
-                     boundary=None, boundary_style={},
-                     kde_params={}, lat_resolution=100, lon_resolution=50,
-                     n_levels=100, figsize=(8, 8), **kwargs):
+    def plot_density(self, *args, **kwargs):
         """Plot bolide detection density.
 
         Density is computed using scikit-learn's `~sklearn.neighbors.KernelDensity`
@@ -715,100 +646,12 @@ class BolideDataFrame(GeoDataFrame):
         fig : `~matplotlib.pyplot.figure`
         ax : `~cartopy.mpl.geoaxes.GeoAxesSubplot`
         """
-        from .crs import DefaultCRS
-        if crs is None:
-            crs = DefaultCRS()
-
-        from cartopy import crs as ccrs
-        # The cartopy library used by plot_density currently has many
-        # warnings about the shapely library deprecating things...
-        # This code suppresses those warnings
-        filterwarnings("ignore", message="__len__ for multi-part")
-        filterwarnings("ignore", message="Iteration over multi-part")
 
         # filter to only detections containing both latitude and longitude
         bdf = self[(~self.latitude.isnull()) & (~self.longitude.isnull())]
 
-        # get numpy array in the format that KernelDensity likes
-        data = np.vstack([np.radians(bdf.latitude), np.radians(bdf.longitude)]).T
-
-        # set kde_params and validate input
-        if 'kernel' not in kde_params:
-            kde_params['kernel'] = 'gaussian'
-        if 'metric' in kde_params:
-            del kde_params['metric']
-            warn('Please do not specify metric. Any metric other than haversine (default)\
-                 will lead to invalid results.')
-
-        from math import radians
-        from sklearn.neighbors import KernelDensity
-        # create and fit a KDE
-        kde = KernelDensity(bandwidth=radians(bandwidth), metric="haversine", **kde_params)
-        kde.fit(data)
-
-        # create grid of latitudes and longitudes
-        from math import pi
-        X, Y = np.meshgrid(np.linspace(-pi, pi, lat_resolution),
-                           np.linspace(-pi/2, pi/2, lon_resolution))
-        xy = np.vstack([Y.ravel(), X.ravel()]).T
-
-        # compute density at gridpoints
-        density_per_steradian = np.exp(kde.score_samples(xy))
-
-        # convert density per steradian to bolides per sqkm
-        steradian_per_sqdeg = 1/3282.80635
-        earth_sqkm = 510 * 10**6
-        earth_sqdeg = 41252.96
-        sqdeg_per_sqkm = earth_sqdeg / earth_sqkm
-        num_bolides = len(self)
-        bolides_per_steradian = num_bolides * density_per_steradian
-        bolides_per_sqkm = bolides_per_steradian * steradian_per_sqdeg * sqdeg_per_sqkm
-
-        # prepare for plotting
-        Z = bolides_per_sqkm
-        Z = Z.reshape(X.shape)
-        levels = np.linspace(0, Z.max(), n_levels)
-        x = np.degrees(X)
-        y = np.degrees(Y)
-        z = Z
-
-        # get mask given the boundary
-        from .fov_utils import get_mask
-        mask = get_mask(np.degrees(xy), boundary).reshape(X.shape)
-
-        # default parameters put into kwargs if not specified by user
-        default_cmap = plt.get_cmap('viridis').copy()
-        default_cmap.set_under('none')
-        defaults = {'alpha': 1, 'antialiased': False, 'cmap': default_cmap}
-        kwargs = reconcile_input(kwargs, defaults)
-
-        # using the given style,
-        with plt.style.context(style):
-
-            # generate Figure and GeoAxes with the given proejction
-            fig, ax = plt.subplots(subplot_kw={'projection': crs}, figsize=figsize)
-
-            ax.stock_img()  # plot background map
-
-            # plot contour, passing arguments through
-            filled_c = ax.contourf(x, y, z*mask, levels=levels[1:],
-                                   transform=ccrs.PlateCarree(), **kwargs)
-
-            # make lines invisible
-            for c in filled_c.collections:
-                c.set_edgecolor('none')
-                c.set_linewidth(0.000000000001)
-
-            if coastlines:
-                ax.coastlines()  # plot coastlines
-
-            # plot sensor FOV
-            from .fov_utils import add_boundary
-            if boundary:
-                add_boundary(ax, boundary, boundary_style)
-
-            plt.colorbar(filled_c, alpha=kwargs['alpha'],
-                         label='bolide density (km$^{-2}$)')
+        from .plotting import plot_density
+        fig, ax = plot_density(bdf.latitude, bdf.longitude, *args, **kwargs)
 
         return fig, ax
 
