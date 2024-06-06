@@ -51,8 +51,12 @@ class Bolide():
         # Strip this off
         filenames = []
         for idx in range(self.nSatellites):
-            realFilenameIdx = self.json['attachments'][idx]['netCdfFilename'].find('_') + 1
-            filenames.append(self.json['attachments'][idx]['netCdfFilename'][realFilenameIdx:])
+            # Make sure we aredealing with a list of strings, it used to be a string
+            if type(self.json['attachments'][idx]['netCdfFilename']) != list:
+                raise Exception('We are expecting netCdfFilename to be a list of length 1. We got something else')
+            for filename in self.json['attachments'][idx]['netCdfFilename']:
+                realFilenameIdx = filename.find('_') + 1
+                filenames.append(filename[realFilenameIdx:])
         return filenames
 
     @property
