@@ -21,10 +21,10 @@ sys.path.insert(0, os.path.abspath('..'))
 
 project = 'bolides'
 copyright = ''
-author = 'Anthony Ozerov and the NASA ATAP team'
+author = 'Anthony Ozerov, Jeffrey Smith and the NASA ATAP team'
 
 # The full version, including alpha/beta/rc tags
-release = '0.5.0'
+release = '0.6.0'
 
 
 # -- General configuration ---------------------------------------------------
