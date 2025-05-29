@@ -2,6 +2,8 @@ notebooks/*
 *.csv
 *.ipynb
 */_spacekit.js
+_spacekit.js
+sprites
 .bolides-venv
 docs/reference/api
 .flake8
@@ -67,6 +69,7 @@ db.sqlite3
 # Flask stuff:
 instance/
 .webassets-cache
+cache-directory
 
 # Scrapy stuff:
 .scrapy
