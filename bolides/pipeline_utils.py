@@ -30,12 +30,27 @@ def dict_from_zodb(files, min_confidence):
             broken = hasattr(d, '__Broken_state__')
             d = dict_from_obj(d, broken)
 
-            # only add to list of dicts if the confidence is above the threshold
-            if d['confidence'] > min_confidence:
+            # Only add to list of dicts if the confidence is above the threshold
+            # We will use the validation score confidence by default, but use the triage score if the validation score
+            # is not available.
+            if (d['assessment'].validation.score is not None and d['assessment'].validation.score >= min_confidence) or \
+                (d['assessment'].validation.score is None and d['assessment'].triage.score >= min_confidence):
                 # create dict containing basic data
-                data0 = {'_id': ID, 'confidence': d['confidence'],
-                         'method': d['confidenceSource'], 'comments': d['howFound'],
+                data0 = {'_id': ID,
+                         'detection_satellite': d['goesSatellite'],
+                         'rawFileList': d['filePathList'],
+                         'GLM_nadir_lat': d['subPointLatDegreesNorth'],
+                         'GLM_nadir_lon': d['subPointLonDegreesEast'],
+                         'isInStereo': d['isInStereo'],
+                         'comments': d['howFound'],
                          'yaw_flip_flag': d['yaw_flip_flag']}
+
+                # Get dict from the assesment object
+                validation_assessment = {'validation_score' : d['assessment'].validation.score, 
+                                         'validation_method' : d['assessment'].validation.method}
+                triage_assessment = {'triage_score' : d['assessment'].triage.score, 
+                                     'triage_method' : d['assessment'].triage.method}
+
                 # get dict from the attributes and values of the features object
                 features = dict_from_obj(d['features'], broken)
 
@@ -43,19 +58,17 @@ def dict_from_zodb(files, min_confidence):
                 stereoFeatures = dict_from_obj(d['stereoFeatures'], broken)
                 g16 = dict_from_obj(stereoFeatures['G16'], broken)
                 g17 = dict_from_obj(stereoFeatures['G17'], broken)
+                g18 = dict_from_obj(stereoFeatures['G18'], broken)
+                g19 = dict_from_obj(stereoFeatures['G19'], broken)
 
-                g16 = add_key_suffix(g16, '_g16')
-                g17 = add_key_suffix(g17, '_g17')
+                # Add a suffix to each of the satellite stereo data so we have unique labels in the big dict below in list_of_dicts
+                g16 = add_key_suffix(g16, '_stereo_g16')
+                g17 = add_key_suffix(g17, '_stereo_g17')
+                g18 = add_key_suffix(g18, '_stereo_g18')
+                g19 = add_key_suffix(g19, '_stereo_g19')
 
-                # Add G18 data only if available in order to support legacy databases
-                if 'G18' in stereoFeatures:
-                    g18 = dict_from_obj(stereoFeatures['G18'], broken)
-                    g18 = add_key_suffix(g18, '_g18')
-                    # append a dict combining all of these to the list of dicts
-                    list_of_dicts.append(dict(data0, **features, **g16, **g17, **g18))
-                else:
-                    # append a dict combining all of these to the list of dicts
-                    list_of_dicts.append(dict(data0, **features, **g16, **g17))
+                # append a dict combining all of these to the list of dicts
+                list_of_dicts.append(dict(data0, **validation_assessment, **triage_assessment, **features, **g16, **g17, **g18, **g19))
 
 
             # minimize the cache a few times while running

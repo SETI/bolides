@@ -1114,4 +1114,5 @@ app.index_string = '''
 # in any production deployment, this should NOT be used and WSGI
 # should call the server.
 if __name__ == '__main__':
-    app.run_server(debug=True)
+   #app.run_server(debug=True)
+    app.run(debug=True)
