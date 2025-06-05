@@ -19,9 +19,9 @@ from .sources import glm_website, usg, pipeline, gmn, csv, remote
 
 _FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
                'confidenceRating', 'confidence', 'lightcurveStructure', 'energy',
-               'integrated_energy_g16', 'integrated_energy_g17', 'integrated_energy_g18',
-               'peak_energy_g16', 'peak_energy_g17', 'peak_energy_g18',
-               'peak_energy_cat_g16', 'peak_energy_cat_g17', 'peak_energy_cat_g18',
+               'integrated_energy_g16', 'integrated_energy_g17', 'integrated_energy_g18', 'integrated_energy_g19'
+               'peak_energy_g16', 'peak_energy_g17', 'peak_energy_g18', 'peak_energy_g19',
+               'peak_energy_cat_g16', 'peak_energy_cat_g17', 'peak_energy_cat_g18', 'peak_energy_cat_g19',
                'impact-e', 'alt', 'vel']
 
 utc = timezone('UTC')
