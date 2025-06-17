@@ -19,9 +19,9 @@ from .sources import glm_website, usg, pipeline, gmn, csv, remote
 
 _FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
                'confidenceRating', 'confidence', 'lightcurveStructure', 'energy',
-               'integrated_energy_g16', 'integrated_energy_g17', 'integrated_energy_g18',
-               'peak_energy_g16', 'peak_energy_g17', 'peak_energy_g18',
-               'peak_energy_cat_g16', 'peak_energy_cat_g17', 'peak_energy_cat_g18',
+               'integrated_energy_g16', 'integrated_energy_g17', 'integrated_energy_g18', 'integrated_energy_g19'
+               'peak_energy_g16', 'peak_energy_g17', 'peak_energy_g18', 'peak_energy_g19',
+               'peak_energy_cat_g16', 'peak_energy_cat_g17', 'peak_energy_cat_g18', 'peak_energy_cat_g19',
                'impact-e', 'alt', 'vel']
 
 utc = timezone('UTC')
@@ -381,7 +381,7 @@ class BolideDataFrame(GeoDataFrame):
         sensors = [sensor.lower() for sensor in sensors]
 
         valid_sensors = ['g16', 'g17', 'glm-16', 'glm-17']
-
+        
         indices = []
         for num, sensor in enumerate(sensors):
             filename = sensor
@@ -389,6 +389,9 @@ class BolideDataFrame(GeoDataFrame):
                 filename = ROOT_PATH + '/data/glm16_obs.csv'
             elif sensor in ['g17', 'glm-17']:
                 filename = ROOT_PATH + '/data/glm17_obs.csv'
+            # TODO: update for g18 and g19
+            elif sensor in ['g18', 'glm-18', 'g19', 'glm-19']:
+                warnings.warn('Working with GOES-18 and GOES-19 data. Problems might arise from not using GOES-16 or GOES-17.')
             else:
                 raise ValueError("Invalid sensor \""+sensor+"\". sensors must be in "+str(valid_sensors))
 
