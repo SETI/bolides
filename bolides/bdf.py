@@ -7,15 +7,19 @@ from tqdm import tqdm
 import numpy as np
 import pandas as pd
 import pickle
-
+from sklearn.neighbors import BallTree
 from geopandas import GeoDataFrame
+from scipy.special import comb
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
+from functools import partial
+
 from . import MPLSTYLE, ROOT_PATH
 from .utils import reconcile_input
 from .sources import glm_website, usg, pipeline, gmn, csv, remote
+from . import fov_utils as fu
 
 _FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
                'confidenceRating', 'confidence', 'lightcurveStructure', 'energy',
@@ -25,6 +29,36 @@ _FIRST_COLS = ['datetime', 'longitude', 'latitude', 'source', 'detectedBy',
                'impact-e', 'alt', 'vel']
 
 utc = timezone('UTC')
+def haversine(lat1, lon1, lat2, lon2):
+        """
+        Calculates the haversine distance between two points in km.
+        Inputs are in degrees.
+        """
+        R = 6371  # Earth radius in km
+
+        # Convert degrees to radians
+        lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+
+        a = np.sin(dlat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2)**2
+        c = 2 * np.arcsin(np.sqrt(a))
+        return R * c
+def distance_metric(x, y, fov_goes, total_time, n):
+    """
+    Calculates the distance between two points considering time
+    ----------------------------
+    Inputs: x, y = row i, row j that have columns time_seconds, lat, long
+    Outputs: DistanceMetric64 "distance" between the two points 
+    """
+    
+    t1, x1, y1 = x
+    t2, x2, y2 = y
+    spatial_dist = haversine(x1, y1, x2, y2) 
+    dt = abs(t1 - t2)
+
+    return (np.pi*spatial_dist**2/fov_goes)*(2*dt/total_time) * comb(n, 2, exact=False)
 
 class BolideDataFrame(GeoDataFrame):
     """
@@ -59,6 +93,8 @@ class BolideDataFrame(GeoDataFrame):
     rearrange : bool
         Whether or not to rearrange the columns, if coming from a CSV or Pickle.
     """
+    
+
     def __init__(self, *args, **kwargs):
 
         if len(args)==0 and len(kwargs)==0:
@@ -156,6 +192,7 @@ class BolideDataFrame(GeoDataFrame):
 
         descriptions = pd.read_csv(ROOT_PATH+'/metadata/columns.csv', index_col='column')
         self.descriptions = descriptions[descriptions.sources.isin([source, 'all'])]
+        
 
     def annotate(self):
         """Add metadata to bolide detections"""
@@ -290,7 +327,7 @@ class BolideDataFrame(GeoDataFrame):
         Parameters
         ----------
         lon, lat : int
-            Longitude and latitude to search for bolides near.
+            Longitude and latitude in degrees to search for bolides near.
         n : int
             Number of closest detections to return.
 
@@ -300,10 +337,72 @@ class BolideDataFrame(GeoDataFrame):
             The filtered data.
 
         """
-        lon_diff = (self['longitude'] - lon).abs()
-        lat_diff = (self['latitude'] - lat).abs()
-        tot_diff = lon_diff + lat_diff
-        return self.iloc[tot_diff.argsort()].head(n)
+        distances = haversine(lat, lon, self['latitude'].values, self['longitude'].values)
+        return self.iloc[distances.argsort()].head(n)
+
+    def get_closest(self, datestr=None, lon=None, lat=None, k=1):
+        """Get the n bolides closest to a given iso-format date string and to a given longitude and latitude
+
+        Parameters
+        ----------
+        datestr : str
+            ISO-format string that can be read by `~datetime.datetime.fromisoformat`.
+            If the timezone is not specified, it is assumed to be in UTC.
+        lon, lat : int
+            Longitude and latitude to search for bolides near.
+        k : int
+            Number of closest detections to return.
+
+        Returns
+        -------
+        bdf : `~BolideDataFrame`
+            The filtered data.
+
+        """
+        if datestr is None and (lon is not None and lat is not None):
+            return self.get_closest_by_loc(lon, lat, n=k)
+        elif lon is None and lat is None and datestr is not None:
+            return self.get_closest_by_time(datestr, n=k)
+        elif lon is None or lat is None:
+            raise ValueError("Must specify both longitude and latitude, or a date string")
+        
+        dt = datetime.fromisoformat(datestr)
+        if dt.tzinfo is None:
+            dt = utc.localize(dt)
+
+        query_row = {
+            'datetime': dt,
+            'latitude': lat,
+            'longitude': lon
+        }
+
+        # Make a shallow copy of self to avoid modifying the original
+        bdf = self.copy()
+
+        # Prepend the query row
+        bdf = pd.concat([pd.DataFrame([query_row]), bdf], ignore_index=True)
+
+        # Compute time_seconds for all rows
+        bdf['time_seconds'] = (bdf.iloc[:, 0] - bdf.iloc[:, 0].min()).dt.total_seconds()
+
+        poly_goes = fu.get_boundary('goes', collection=True, intersection=False, crs=None)
+        fov_goes = poly_goes.area / 1e6
+        min_time = self['datetime'].min()
+        max_time = self['datetime'].max()
+        total_time = (max_time - min_time).total_seconds()
+        n = len(self)
+
+        metric = partial(distance_metric, fov_goes=fov_goes, total_time=total_time, n=n)
+        
+        X = bdf[['time_seconds', 'latitude', 'longitude']].to_numpy()
+
+        tree = BallTree(X, metric=metric)
+        
+        dists, inds = tree.query(X[:1], k=k+1)
+        
+        inds = inds[0][1:]  # Exclude the first index (the query point itself)
+
+        return self.iloc[inds]
 
     def filter_boundary(self, boundary, intersection=False, interior=True):
         """Filter data to only points within specified boundaries.
