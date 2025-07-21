@@ -383,7 +383,7 @@ class BolideDataFrame(GeoDataFrame):
         bdf = pd.concat([pd.DataFrame([query_row]), bdf], ignore_index=True)
 
         # Compute time_seconds for all rows
-        bdf['time_seconds'] = (bdf.iloc[:, 0] - bdf.iloc[:, 0].min()).dt.total_seconds()
+        bdf['time_seconds'] = (bdf['datetime'] - bdf['datetime'].min()).dt.total_seconds()
 
         poly_goes = fu.get_boundary('goes', collection=True, intersection=False, crs=None)
         fov_goes = poly_goes.area / 1e6
@@ -402,7 +402,7 @@ class BolideDataFrame(GeoDataFrame):
         
         inds = inds[0][1:]  # Exclude the first index (the query point itself)
 
-        return self.iloc[inds]
+        return bdf.iloc[inds]
 
     def filter_boundary(self, boundary, intersection=False, interior=True):
         """Filter data to only points within specified boundaries.
