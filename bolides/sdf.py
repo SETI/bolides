@@ -1,6 +1,7 @@
 import pandas as pd
 import requests
 import numpy as np
+import warnings
 from . import ROOT_PATH
 
 
@@ -204,6 +205,22 @@ class ShowerDataFrame(pd.DataFrame):
         return plotter
 
     def get_dates(self, showers, years):
+        """
+        Get the dates from solar longitude.
+        
+        Parameters
+        ----------
+        showers : str or list of str
+            The meteor shower(s) to get the dates for.
+        years : int or list of int
+            The year(s) to get the dates for.
+        
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with the shower Codes, names, IAUNos, and the corresponding dates
+            for the specified meteor showers and years.
+        """
         if showers is None:
             showers = self['shower name-designation'].unique()
         if type(years) is int:
@@ -240,7 +257,7 @@ class ShowerDataFrame(pd.DataFrame):
                              'datetime': dts})
     
     def get_start_dates(self, showers, years):
-        """Get the start dates of the meteor showers.
+        """Get the start dates of the meteor showers from solar longitude.
 
         Parameters
         ----------
@@ -293,7 +310,7 @@ class ShowerDataFrame(pd.DataFrame):
                              'datetime': dts})
     
     def get_end_dates(self, showers, years):
-        """Get the start dates of the meteor showers.
+        """Get the end dates of the meteor showers from solar longitude.
 
         Parameters
         ----------
@@ -345,6 +362,39 @@ class ShowerDataFrame(pd.DataFrame):
                              'IAUNo': sdf.IAUNo,
                              'datetime': dts})
 
+    def fastest_showers(self, n=5):
+        """
+        Return the top n shower Codes by mean Vg.
+
+        Parameters
+        -----------
+        n : int
+            The number of top showers to return based on their mean Vg. Maximum is 122.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with the shower Codes and their mean Vg, sorted by mean Vg in descending order.
+        """
+        # Ensure Vg is numeric, coerce errors to NaN
+        sdf = self.copy()
+        sdf['Vg'] = pd.to_numeric(sdf['Vg'], errors='coerce')
+        sdf_sorted = sdf.sort_values('Code')
+
+        mean_vgs = []
+        codes = []
+        for code, group in sdf_sorted.groupby('Code'):
+            codes.append(code)
+            mean_vgs.append(group['Vg'].mean())
+
+        result = pd.DataFrame({'Code': codes, 'mean_Vg': mean_vgs})
+        
+        if len(result) < n:
+            warnings.warn('Maximum number of showers is ' + str(len(result)))
+        
+        result = result.sort_values('mean_Vg', ascending=False).head(n).reset_index(drop=True)
+        return result
+    
     def __setattr__(self, attr, val):
         from warnings import filterwarnings
         filterwarnings("ignore", message="Pandas doesn't allow columns to be created via a new attribute name")
