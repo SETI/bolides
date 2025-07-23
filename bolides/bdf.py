@@ -33,6 +33,18 @@ def haversine(lat1, lon1, lat2, lon2):
         """
         Calculates the haversine distance between two points in km.
         Inputs are in degrees.
+
+        Parameters
+        ----------
+        lat1, lon1 : float
+            Latitude and longitude of the first point in degrees.
+        lat2, lon2 : float
+            Latitude and longitude of the second point in degrees.
+
+        Returns
+        -------
+        float
+            The haversine distance between the two points in kilometers.
         """
         R = 6371  # Earth radius in km
 
@@ -45,12 +57,51 @@ def haversine(lat1, lon1, lat2, lon2):
         a = np.sin(dlat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2)**2
         c = 2 * np.arcsin(np.sqrt(a))
         return R * c
-def distance_metric(x, y, fov_goes, total_time, n):
+def _distance_metric(x, y, fov_goes, total_time, n):
     """
-    Calculates the distance between two points considering time
-    ----------------------------
-    Inputs: x, y = row i, row j that have columns time_seconds, lat, long
-    Outputs: DistanceMetric64 "distance" between the two points 
+    Measurement of how improbable it is for two bolides to be a distance apart in time and space
+
+    Parameters
+    ----------
+    x, y: tuple
+        Each tuple contains (time_seconds, latitude, longitude). They are rows from the BolideDataFrame.
+        time_seconds is the time in seconds since the start of the dataset.
+        latitude and longitude are in degrees.
+    fov_goes: float
+        The area of the GOES field of view in km^2.
+    total_time: float
+        The total time in seconds over which the bolides were observed.
+    n: int
+        The number of bolides in the dataset.
+
+    Returns
+    -------
+    float
+        The computed distance between the two points, considering both spatial and temporal dimensions. 
+        This estimates the probability that two bolide events would randomly be found as close together in space and time as the two being compared, under a uniform random distribution.
+
+        np.pi*spatial_dist**2
+            This is the area of a circle with radius equal to the spatial distance between the two points (in km²).
+
+        / fov_goes
+            Divides by the total field-of-view area (in km²) of the GOES sensor.
+            This gives the probability that two random points would be within spatial_dist of each other, assuming uniform distribution over the field of view.
+
+        (2*dt/total_time)
+            dt is the absolute time difference between the two events (in seconds).
+            total_time is the total time span of the dataset (in seconds).
+            This gives the probability that two random events would be within dt of each other in time.
+
+        comb(n, 2, exact=False)
+            This is the number of unique pairs you can form from n events.
+            It scales the probability to account for all possible pairs in the dataset.
+
+        This gives the expected number of pairs (out of all possible pairs) that would be at least as close in space and time as the two points being compared, under a random (uniform) distribution.
+
+        Lower values mean the pair is unusually close in space and time (less likely by chance).
+        Higher values mean the pair is not unusually close (more likely by chance).
+
+        Used as the DistanceMetric64 "distance" between the two points for the function get_closest().
     """
     
     t1, x1, y1 = x
@@ -340,8 +391,11 @@ class BolideDataFrame(GeoDataFrame):
         distances = haversine(lat, lon, self['latitude'].values, self['longitude'].values)
         return self.iloc[distances.argsort()].head(n)
 
-    def get_closest(self, datestr=None, lon=None, lat=None, k=1):
-        """Get the n bolides closest to a given iso-format date string and to a given longitude and latitude
+    def get_closest(self, datestr=None, lon=None, lat=None, k=1, time_weight=1, loc_weight=1, time_scale=86400, loc_scale=100):
+        """
+        Get the n bolides closest to a given iso-format date string and to a given longitude and latitude in degrees. This is calculated using BallTree and a custom distance metric that finds the expected number of pairs of bolides that would be at least as close in space and time as the two points being compared, under a random (uniform) distribution. Effectively, given a time and location, this will find and cluster bolide events that are nearest to it.
+
+        If you are more confident about the position or time of the bolide, you can specify weights where higher weights mean you are more confident in that dimension. This will calculate the distance metric as a weighted sum of the time and spatial distances. You can also set the normalization factors for the time and spatial distances, which are used to scale the time and spatial distances to a common scale. The default is 1 day (86400 seconds) for time and 100 km for spatial distance.
 
         Parameters
         ----------
@@ -349,9 +403,17 @@ class BolideDataFrame(GeoDataFrame):
             ISO-format string that can be read by `~datetime.datetime.fromisoformat`.
             If the timezone is not specified, it is assumed to be in UTC.
         lon, lat : int
-            Longitude and latitude to search for bolides near.
+            Longitude and latitude in degrees to search for bolides near.
         k : int
             Number of closest detections to return.
+        time_weight : float
+            Weight to apply to the time difference in the distance metric. Higher values mean you're more confident in the time since you penalize points more heavily if they're farther in time. Default is 1.
+        loc_weight : float
+            Weight to apply to the spatial distance in the distance metric. Higher values mean you're more confident in the location since you penalize points more heavily if they're farther in distance. Default is 1.
+        time_scale : float
+            Normalization for time in seconds (default 1 day = 86400). 
+        loc_scale : float
+            Normalization for distance in km (default 100 km).
 
         Returns
         -------
@@ -364,11 +426,26 @@ class BolideDataFrame(GeoDataFrame):
         elif lon is None and lat is None and datestr is not None:
             return self.get_closest_by_time(datestr, n=k)
         elif lon is None or lat is None:
-            raise ValueError("Must specify both longitude and latitude, or a date string")
+            raise ValueError("Must specify both longitude and latitude, or a date string, or all .")
         
+        
+
         dt = datetime.fromisoformat(datestr)
         if dt.tzinfo is None:
             dt = utc.localize(dt)
+
+        if time_weight != loc_weight:
+            # Compute time difference in seconds
+            time_deltas = np.abs((self['datetime'] - dt).dt.total_seconds()) / time_scale
+
+            # Compute spatial distance in km
+            spatial_deltas = haversine(lat, lon, self['latitude'].values, self['longitude'].values) / loc_scale
+
+            # Combine with weights. The smaller the metric, the closer the bolide is to the query point.
+            metric = time_weight * time_deltas + loc_weight * spatial_deltas
+
+            # Get the k closest
+            return self.iloc[metric.argsort()].head(k)
 
         query_row = {
             'datetime': dt,
@@ -376,8 +453,8 @@ class BolideDataFrame(GeoDataFrame):
             'longitude': lon
         }
 
-        # Make a shallow copy of self to avoid modifying the original
-        bdf = self.copy()
+        # Make a deep copy of self to avoid modifying the original
+        bdf = self.copy(deep=True)
 
         # Prepend the query row
         bdf = pd.concat([pd.DataFrame([query_row]), bdf], ignore_index=True)
@@ -392,7 +469,7 @@ class BolideDataFrame(GeoDataFrame):
         total_time = (max_time - min_time).total_seconds()
         n = len(self)
 
-        metric = partial(distance_metric, fov_goes=fov_goes, total_time=total_time, n=n)
+        metric = partial(_distance_metric, fov_goes=fov_goes, total_time=total_time, n=n)
         
         X = bdf[['time_seconds', 'latitude', 'longitude']].to_numpy()
 
@@ -401,6 +478,11 @@ class BolideDataFrame(GeoDataFrame):
         dists, inds = tree.query(X[:1], k=k+1)
         
         inds = inds[0][1:]  # Exclude the first index (the query point itself)
+
+        cols = list(bdf.columns)
+        a, b = cols.index('latitude'), cols.index('longitude')
+        cols[b], cols[a] = cols[a], cols[b]
+        bdf = bdf[cols]
 
         return bdf.iloc[inds]
 
