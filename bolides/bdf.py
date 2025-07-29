@@ -318,14 +318,6 @@ class BolideDataFrame(GeoDataFrame):
         compared, under a random (uniform) distribution. Effectively, given a time
         and location, this will find and cluster bolide events that are nearest to it.
 
-        If you are more confident about the position or time of the bolide, you can
-        specify weights where higher weights mean you are more confident in that
-        dimension. This will calculate the distance metric as a weighted sum of the
-        time and spatial distances. You can also set the normalization factors for
-        the time and spatial distances, which are used to scale the time and spatial
-        distances to a common scale. The default is 1 day (86400 seconds) for time
-        and 100 km for spatial distance.
-
         Parameters
         ----------
         datestr : str
