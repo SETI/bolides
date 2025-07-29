@@ -162,3 +162,91 @@ def sol_lon_to_jd(lon, year):
         TDelta += 365.2596
     JD = JD0 + TDelta
     return JD
+
+def haversine(lat1, lon1, lat2, lon2):
+        """
+        Calculates the haversine distance between two points in km.
+        Inputs are in degrees.
+
+        Parameters
+        ----------
+        lat1, lon1 : float
+            Latitude and longitude of the first point in degrees.
+        lat2, lon2 : float
+            Latitude and longitude of the second point in degrees.
+
+        Returns
+        -------
+        float
+            The haversine distance between the two points in kilometers.
+        """
+        R = 6371  # Earth radius in km
+
+        # Convert degrees to radians
+        lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+
+        a = np.sin(dlat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2)**2
+        c = 2 * np.arcsin(np.sqrt(a))
+        return R * c
+
+def _distance_metric(x, y, fov_goes, total_time, n):
+    """
+    Measurement of how improbable it is for two bolides to be a distance apart in time and space
+
+    Parameters
+    ----------
+    x, y: tuple
+        Each tuple contains (time_seconds, latitude, longitude). They are rows from the BolideDataFrame.
+        time_seconds is the time in seconds since the start of the dataset.
+        latitude and longitude are in degrees.
+    fov_goes: float
+        The area of the GOES field of view in km^2.
+    total_time: float
+        The total time in seconds over which the bolides were observed.
+    n: int
+        The number of bolides in the dataset.
+
+    Returns
+    -------
+    float
+        The computed distance between the two points, considering both spatial and
+        temporal dimensions. This estimates the probability that two bolide events would
+        randomly be found as close together in space and time as the two being compared,
+        under a uniform random distribution.
+
+        np.pi*spatial_dist**2
+            This is the area of a circle with radius equal to the spatial distance
+            between the two points (in km²).
+
+        / fov_goes
+            Divides by the total field-of-view area (in km²) of the GOES sensor.
+            This gives the probability that two random points would be within spatial_dist
+            of each other, assuming uniform distribution over the field of view.
+
+        (2*dt/total_time)
+            dt is the absolute time difference between the two events (in seconds).
+            total_time is the total time span of the dataset (in seconds).
+            This gives the probability that two random events would be within dt of each other in time.
+
+        comb(n, 2, exact=False)
+            This is the number of unique pairs you can form from n events.
+            It scales the probability to account for all possible pairs in the dataset.
+
+        This gives the expected number of pairs (out of all possible pairs) that would be at least as
+        close in space and time as the two points being compared, under a random (uniform) distribution.
+
+        Lower values mean the pair is unusually close in space and time (less likely by chance).
+        Higher values mean the pair is not unusually close (more likely by chance).
+
+        Used as the DistanceMetric64 "distance" between the two points for the function get_closest().
+    """
+    
+    t1, x1, y1 = x
+    t2, x2, y2 = y
+    spatial_dist = haversine(x1, y1, x2, y2) 
+    dt = abs(t1 - t2)
+
+    return (np.pi*spatial_dist**2/fov_goes)*(2*dt/total_time) * comb(n, 2, exact=False)
