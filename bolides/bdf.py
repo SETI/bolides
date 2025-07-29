@@ -309,7 +309,7 @@ class BolideDataFrame(GeoDataFrame):
         distances = haversine(lat, lon, self['latitude'].values, self['longitude'].values)
         return self.iloc[distances.argsort()].head(n)
 
-    def get_closest(self, datestr=None, lon=None, lat=None, k=1, time_weight=1, loc_weight=1, time_scale=86400, loc_scale=100):
+    def get_closest(self, datestr=None, lon=None, lat=None, k=1):
         """
         Get the n bolides closest to a given iso-format date string and to a given
         longitude and latitude in degrees. This is calculated using BallTree and a
@@ -335,18 +335,6 @@ class BolideDataFrame(GeoDataFrame):
             Longitude and latitude in degrees to search for bolides near.
         k : int
             Number of closest detections to return.
-        time_weight : float
-            Weight to apply to the time difference in the distance metric.
-            Higher values mean you're more confident in the time since you penalize
-            points more heavily if they're farther in time. Default is 1.
-        loc_weight : float
-            Weight to apply to the spatial distance in the distance metric.
-            Higher values mean you're more confident in the location since you penalize
-            points more heavily if they're farther in distance. Default is 1.
-        time_scale : float
-            Normalization for time in seconds (default 1 day = 86400). 
-        loc_scale : float
-            Normalization for distance in km (default 100 km).
 
         Returns
         -------
@@ -366,19 +354,6 @@ class BolideDataFrame(GeoDataFrame):
         dt = datetime.fromisoformat(datestr)
         if dt.tzinfo is None:
             dt = utc.localize(dt)
-
-        if time_weight != loc_weight:
-            # Compute time difference in seconds
-            time_deltas = np.abs((self['datetime'] - dt).dt.total_seconds()) / time_scale
-
-            # Compute spatial distance in km
-            spatial_deltas = haversine(lat, lon, self['latitude'].values, self['longitude'].values) / loc_scale
-
-            # Combine with weights. The smaller the metric, the closer the bolide is to the query point.
-            metric = time_weight * time_deltas + loc_weight * spatial_deltas
-
-            # Get the k closest
-            return self.iloc[metric.argsort()].head(k)
 
         query_row = {
             'datetime': dt,
