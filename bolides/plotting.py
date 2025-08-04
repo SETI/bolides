@@ -343,10 +343,8 @@ def plot_density(
         filled_c = ax.contourf(x, y, z*mask, levels=levels[1:],
                                transform=ccrs.PlateCarree(), **kwargs)
 
-        # make lines invisible
-        for c in filled_c.collections:
-            c.set_edgecolor('none')
-            c.set_linewidth(0.000000000001)
+        filled_c.set_edgecolor('none')
+        filled_c.set_linewidth(0.000000000001)
 
         if coastlines:
             ax.coastlines()  # plot coastlines
