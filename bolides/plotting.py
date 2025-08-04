@@ -163,7 +163,7 @@ def plot_scatter(
                 if s is not None and hasattr(s, '__getitem__'):
                     kwargs['s'] = s[idx]
                 ax.scatter(x[idx], y[idx], color=scalarMap.to_rgba(num), label=label, **kwargs)
-            plt.legend()
+            plt.legend(fontsize=20)
 
         if coastlines:
             ax.coastlines()  # plot coastlines
