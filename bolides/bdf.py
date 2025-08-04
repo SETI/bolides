@@ -449,7 +449,9 @@ class BolideDataFrame(GeoDataFrame):
         `~BolideDataFrame`
             The filtered `~BolideDataFrame`
         """
-        
+
+        if not pd.api.types.is_datetime64_any_dtype(self.datetime):
+            self.datetime = pd.to_datetime(self.datetime, errors='coerce')
         if years is None:
             years = list(range(min(self.datetime).year-1, max(self.datetime).year+1))
         elif type(years) is int:
@@ -462,7 +464,7 @@ class BolideDataFrame(GeoDataFrame):
                 from . import ShowerDataFrame
                 sdf = ShowerDataFrame()
                 self._showers = sdf
-
+        
         dates = sdf.get_dates(shower, years).datetime
         date_padding = timedelta(days=padding)
         date_ranges = [[d-date_padding, d+date_padding] for d in dates]
