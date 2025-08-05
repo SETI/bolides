@@ -354,8 +354,10 @@ def plot_density(
         if boundary:
             add_boundary(ax, boundary, boundary_style)
 
-        plt.colorbar(filled_c, alpha=kwargs['alpha'],
-                     label='bolide density (km$^{-2}$)')
+        cbar = plt.colorbar(filled_c, alpha=kwargs['alpha'])
+        
+        cbar.ax.tick_params(labelsize=15)
+        cbar.set_label(label='bolide density (km$^{-2}$)', size=20, weight='bold')
 
         if title is not None:
             plt.title(title)
