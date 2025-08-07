@@ -8,6 +8,7 @@ version = "0.6.0"
 authors = [
   { name="Anthony Ozerov", email="ozerov@berkeley.edu" },
   { name="Jeffrey Smith", email="jsmith@seti.org" },
+  { name="Kaitlyn Chen", email="kaichen@hmc.edu" },
 ]
 description = "A package to analyze bolide data"
 readme = "README.rst"
@@ -34,6 +35,7 @@ dependencies = [
     "watermark",
     "beautifulsoup4",
     "plotly",
+    "scipy",
 ]
 
 [project.urls]
