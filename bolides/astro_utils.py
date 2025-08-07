@@ -7,6 +7,8 @@ import astropy.units as u
 from astropy.coordinates import ICRS, SkyCoord
 from astropy.time import Time
 from scipy.special import comb
+from pytz import timezone
+utc = timezone('UTC')
 
 def get_phase(datetime):
     """Get lunar phase (0.01=new moon just happened, 0.99=new moon about to happen)"""
