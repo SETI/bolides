@@ -43,7 +43,8 @@ def glm_website():
         for sat in ['GLM-16', 'GLM-17', 'GLM-18', 'GLM-19']:
             if sat in brightness:
                 cat_cols[sat].append(brightness[sat]['category'])
-                val_cols[sat].append(brightness[sat]['value'])
+                # Note: 'value' is sometimes missing from brightness[sat], if so, fill with np.nan
+                val_cols[sat].append(brightness[sat].get('value', np.nan))
             else:
                 cat_cols[sat].append("")
                 val_cols[sat].append(np.nan)

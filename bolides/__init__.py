@@ -2,8 +2,8 @@ API_ENDPOINT_EVENTLIST = "https://neo-bolide.ndc.nasa.gov/service/event/public"
 API_ENDPOINT_EVENT = "https://neo-bolide.ndc.nasa.gov/service/event/"
 MPLSTYLE = "ggplot"
 
-import pkg_resources
-ROOT_PATH = pkg_resources.resource_filename('bolides', '.')
+from pathlib import Path
+ROOT_PATH = str(Path(__file__).parent)
 GLM_FOV_PATH = ROOT_PATH + '/data/GLM_FOV_edges.nc'
 
 from .bolide import *
