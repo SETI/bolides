@@ -1,6 +1,7 @@
 import pandas as pd
 import requests
 import numpy as np
+import warnings
 from . import ROOT_PATH
 
 
@@ -14,7 +15,7 @@ class ShowerDataFrame(pd.DataFrame):
         Specifies the source for the initialized. Can be:
 
         - ``'established', 'all', 'working'``: initialize from different sets
-          of data offered at the IAU Meteor Data Center, https://www.ta3.sk/IAUC22DB/MDC2007/
+          of data offered at the IAU Meteor Data Center, https://www.ta3.sk/IAUC22DB/MDC2022/
         - ``'csv'``: initialize from a .csv file
 
     file : str
@@ -32,7 +33,7 @@ class ShowerDataFrame(pd.DataFrame):
         if source == 'csv':
             df = pd.read_csv(file, index_col=0, keep_default_na=False, na_values='')
         else:
-            url = 'https://www.ta3.sk/IAUC22DB/MDC2007/Etc/stream'+source+'data.txt'
+            url = 'https://www.ta3.sk/IAUC22DB/MDC2022/Etc/stream'+source+'data2022.txt'
             r = requests.get(url)
             start_line = 0
             for num, line in enumerate(r.text.splitlines()):
@@ -41,12 +42,13 @@ class ShowerDataFrame(pd.DataFrame):
                     break
             column_line = r.text.splitlines()[start_line-3]
             import re
-            columns = re.split(r" {2,}", column_line)[1:-1]
+            columns = re.split(r" {2,}", column_line)[1:-3]
             data_lines = r.text.splitlines()[start_line:]
             data = '\n'.join(data_lines)
             import io
             csv_io = io.StringIO(data)
             df = pd.read_csv(csv_io, sep="|", header=None)
+            df = df.iloc[:, :len(columns)]
             df.columns = columns
             for col in df.columns:
                 if df[col].dtype == 'O':
@@ -135,7 +137,7 @@ class ShowerDataFrame(pd.DataFrame):
                     orb = Orbit.from_classical(Sun, a, ecc, inc, raan, argp, nu, plane=Planes.EARTH_ECLIPTIC)
                 except ValueError:
                     continue
-                plotter.plot(orb, label=row['shower name'])
+                plotter.plot(orb, label=row['shower name-designation'])
 
         if use_3d:
             fig = plotter._figure
@@ -203,6 +205,24 @@ class ShowerDataFrame(pd.DataFrame):
         return plotter
 
     def get_dates(self, showers, years):
+        """
+        Get the dates from solar longitude.
+        
+        Parameters
+        ----------
+        showers : str or list of str
+            The meteor shower(s) to get the dates for.
+        years : int or list of int
+            The year(s) to get the dates for.
+        
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with the shower Codes, names, IAUNos, and the corresponding dates
+            for the specified meteor showers and years.
+        """
+        if showers is None:
+            showers = self['shower name-designation'].unique()
         if type(years) is int:
             years = [years]
         if type(showers) in [str, int]:
@@ -214,28 +234,167 @@ class ShowerDataFrame(pd.DataFrame):
         elif len(showers[0]) == 3:
             col = 'Code'
         else:
-            col = 'shower name'
+            col = 'shower name-designation'
         sdf = self[self[col].isin(showers)]
         import warnings
         if len(sdf) == 0:
             warnings.warn('No showers with '+col+'in'+str(showers)+'.')
 
         sdf = sdf[sdf.activity == 'annual']
-        sdf = sdf.dropna(subset=['LaSun'])
+        sdf = sdf.dropna(subset=['LoS'])
         num = len(sdf)
         sdf = pd.concat([sdf]*len(years), ignore_index=True)
         years = np.repeat(years, num)
 
-        lons = sdf.LaSun
+        lons = sdf.LoS
         from .astro_utils import sol_lon_to_datetime
         dts = []
         for lon, year in zip(lons, years):
             dts.append(sol_lon_to_datetime(lon, year))
         return pd.DataFrame({'Code': sdf.Code,
-                             'shower name': sdf['shower name'],
+                             'shower name': sdf['shower name-designation'],
+                             'IAUNo': sdf.IAUNo,
+                             'datetime': dts})
+    
+    def get_start_dates(self, showers, years):
+        """Get the start dates of the meteor showers from solar longitude.
+
+        Parameters
+        ----------
+        showers : str or list of str
+            The meteor shower(s) to get the start dates for.
+        years : int or list of int
+            The year(s) to get the start dates for.
+
+        Returns
+        -------
+        pd.Series
+            A series with the start dates of the meteor showers.
+        """
+        if showers is None:
+            showers = self['shower name-designation'].unique()
+        if type(years) is int:
+            years = [years]
+        if type(showers) in [str, int]:
+            showers = [showers]
+        showers = [str(s) for s in showers]
+        if showers[0].isdigit():
+            col = 'IAUNo'
+            showers = [int(s) for s in showers]
+        elif len(showers[0]) == 3:
+            col = 'Code'
+        else:
+            col = 'shower name-designation'
+        sdf = self[self[col].isin(showers)]
+        import warnings
+        if len(sdf) == 0:
+            warnings.warn('No showers with '+col+'in'+str(showers)+'.')
+
+        sdf = sdf[sdf.activity == 'annual']
+        sdf = sdf.dropna(subset=['LoSb'])
+        num = len(sdf)
+        sdf = pd.concat([sdf]*len(years), ignore_index=True)
+        years = np.repeat(years, num)
+
+        lons = sdf.LoSb
+        from .astro_utils import sol_lon_to_datetime
+        dts = []
+        for lon, year in zip(lons, years):
+            if lon=='' or lon is None or pd.isna(lon):
+                dts.append(np.nan)
+            else:
+                dts.append(sol_lon_to_datetime(float(lon), year))
+        return pd.DataFrame({'Code': sdf.Code,
+                             'shower name': sdf['shower name-designation'],
+                             'IAUNo': sdf.IAUNo,
+                             'datetime': dts})
+    
+    def get_end_dates(self, showers, years):
+        """Get the end dates of the meteor showers from solar longitude.
+
+        Parameters
+        ----------
+        showers : str or list of str
+            The meteor shower(s) to get the start dates for.
+        years : int or list of int
+            The year(s) to get the start dates for.
+
+        Returns
+        -------
+        pd.Series
+            A series with the start dates of the meteor showers.
+        """
+        if showers is None:
+            showers = self['shower name-designation'].unique()
+        if type(years) is int:
+            years = [years]
+        if type(showers) in [str, int]:
+            showers = [showers]
+        showers = [str(s) for s in showers]
+        if showers[0].isdigit():
+            col = 'IAUNo'
+            showers = [int(s) for s in showers]
+        elif len(showers[0]) == 3:
+            col = 'Code'
+        else:
+            col = 'shower name-designation'
+        sdf = self[self[col].isin(showers)]
+        import warnings
+        if len(sdf) == 0:
+            warnings.warn('No showers with '+col+'in'+str(showers)+'.')
+
+        sdf = sdf[sdf.activity == 'annual']
+        sdf = sdf.dropna(subset=['LoSe'])
+        num = len(sdf)
+        sdf = pd.concat([sdf]*len(years), ignore_index=True)
+        years = np.repeat(years, num)
+
+        lons = pd.to_numeric(sdf.LoSe, errors='coerce')
+        from .astro_utils import sol_lon_to_datetime
+        dts = []
+        for lon, year in zip(lons, years):
+            if lon=='' or lon is None or pd.isna(lon):
+                dts.append(np.nan)
+            else:
+                dts.append(sol_lon_to_datetime(float(lon), year))
+        return pd.DataFrame({'Code': sdf.Code,
+                             'shower name': sdf['shower name-designation'],
                              'IAUNo': sdf.IAUNo,
                              'datetime': dts})
 
+    def fastest_showers(self, n=5):
+        """
+        Return the top n shower Codes by mean Vg.
+
+        Parameters
+        -----------
+        n : int
+            The number of top showers to return based on their mean Vg. Maximum is 122.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame with the shower Codes and their mean Vg, sorted by mean Vg in descending order.
+        """
+        # Ensure Vg is numeric, coerce errors to NaN
+        sdf = self.copy()
+        sdf['Vg'] = pd.to_numeric(sdf['Vg'], errors='coerce')
+        sdf_sorted = sdf.sort_values('Code')
+
+        mean_vgs = []
+        codes = []
+        for code, group in sdf_sorted.groupby('Code'):
+            codes.append(code)
+            mean_vgs.append(group['Vg'].mean())
+
+        result = pd.DataFrame({'Code': codes, 'mean_Vg': mean_vgs})
+        
+        if len(result) < n:
+            warnings.warn('Maximum number of showers is ' + str(len(result)))
+        
+        result = result.sort_values('mean_Vg', ascending=False).head(n).reset_index(drop=True)
+        return result
+    
     def __setattr__(self, attr, val):
         from warnings import filterwarnings
         filterwarnings("ignore", message="Pandas doesn't allow columns to be created via a new attribute name")

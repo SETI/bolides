@@ -530,6 +530,9 @@ class BolideDataFrame(GeoDataFrame):
         `~BolideDataFrame`
             The filtered `~BolideDataFrame`
         """
+
+        if not pd.api.types.is_datetime64_any_dtype(self.datetime):
+            self.datetime = pd.to_datetime(self.datetime, errors='coerce')
         if years is None:
             years = list(range(min(self.datetime).year-1, max(self.datetime).year+1))
         elif type(years) is int:
@@ -542,7 +545,7 @@ class BolideDataFrame(GeoDataFrame):
                 from . import ShowerDataFrame
                 sdf = ShowerDataFrame()
                 self._showers = sdf
-
+        
         dates = sdf.get_dates(shower, years).datetime
         date_padding = timedelta(days=padding)
         date_ranges = [[d-date_padding, d+date_padding] for d in dates]
@@ -551,6 +554,53 @@ class BolideDataFrame(GeoDataFrame):
         if not exclude:
             good_locs = counts != np.zeros(len(counts))
         else:
+            good_locs = counts == np.zeros(len(counts))
+        return self[good_locs]
+    
+    def filter_out_all_showers(self, shower=None, exclude=True, sdf=None):
+        """Filter out all bolides that are part of any meteor shower.
+
+        Parameters
+        ----------
+        sdf: ShowerDataFrame
+            Optionally provide a ShowerDataFrame to use for filtering.
+            If not provided, the ShowerDataFrame is pulled from the IAU Meteor Data Center.
+        shower: str
+            The meteor shower to filter by. If None, all showers are used.
+            Can enter either IAU number, IAU 3-letter code, or full shower name.
+            Refer to the IAU Meteor Data center at https://www.ta3.sk/IAUC22DB/MDC2022/.
+        exclude: bool
+            Whether or not to exclude bolides around the given showers or keep only bolides in showers. Default is to exclude.
+
+        Returns
+        -------
+        `~BolideDataFrame`
+            The filtered `~BolideDataFrame`
+        """
+        years = list(range(min(self.datetime).year-1, max(self.datetime).year+1))
+        if sdf is None:
+            if hasattr(self, '_showers'):
+                sdf = self._showers
+            else:
+                from . import ShowerDataFrame
+                sdf = ShowerDataFrame()
+                self._showers = sdf
+        
+        
+        start = sdf.get_start_dates(shower, years).datetime
+        end = sdf.get_end_dates(shower, years).datetime
+        date_ranges = [
+            [date_start, date_end]
+            for date_start, date_end in zip(start, end)
+            if not (pd.isna(date_start) or pd.isna(date_end))
+        ]
+        print(date_ranges)
+        counts = np.sum(np.array([list(self.datetime.between(d[0], d[1])) for d in date_ranges]), axis=0)
+        if not exclude:
+
+            good_locs = counts != np.zeros(len(counts))
+        else:
+            # keep bolides that are not part of any shower
             good_locs = counts == np.zeros(len(counts))
         return self[good_locs]
 

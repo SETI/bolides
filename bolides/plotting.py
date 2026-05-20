@@ -163,7 +163,7 @@ def plot_scatter(
                 if s is not None and hasattr(s, '__getitem__'):
                     kwargs['s'] = s[idx]
                 ax.scatter(x[idx], y[idx], color=scalarMap.to_rgba(num), label=label, **kwargs)
-            plt.legend()
+            plt.legend(fontsize=20)
 
         if coastlines:
             ax.coastlines()  # plot coastlines
@@ -343,10 +343,8 @@ def plot_density(
         filled_c = ax.contourf(x, y, z*mask, levels=levels[1:],
                                transform=ccrs.PlateCarree(), **kwargs)
 
-        # make lines invisible
-        for c in filled_c.collections:
-            c.set_edgecolor('none')
-            c.set_linewidth(0.000000000001)
+        filled_c.set_edgecolor('none')
+        filled_c.set_linewidth(0.000000000001)
 
         if coastlines:
             ax.coastlines()  # plot coastlines
@@ -356,8 +354,10 @@ def plot_density(
         if boundary:
             add_boundary(ax, boundary, boundary_style)
 
-        plt.colorbar(filled_c, alpha=kwargs['alpha'],
-                     label='bolide density (km$^{-2}$)')
+        cbar = plt.colorbar(filled_c, alpha=kwargs['alpha'])
+        
+        cbar.ax.tick_params(labelsize=15)
+        cbar.set_label(label='bolide density (km$^{-2}$)', size=20, weight='bold')
 
         if title is not None:
             plt.title(title)
