@@ -1,4 +1,8 @@
+from datetime import datetime
+
 import numpy as np
+import pandas as pd
+from pytz import timezone
 from geopandas import GeoDataFrame
 import pyproj
 import cartopy.crs as ccrs
@@ -6,6 +10,12 @@ from shapely.geometry import Point, Polygon, LinearRing
 
 from . import GLM_FOV_PATH, ROOT_PATH
 from .utils import reconcile_input
+
+# all times in this package are UTC; used to localize naive datetimes
+utc = timezone('UTC')
+
+# the GOES satellites carrying a GLM instrument that this package knows about
+GOES_SATELLITES = [16, 17, 18, 19]
 
 
 def add_boundary(ax, boundary=None, boundary_style={}):
@@ -243,3 +253,201 @@ def get_mask(xy, boundary=None, intersection=False):
     points = gdf.geometry
     points_in_poly = [p.within(polygon) for p in points]
     return np.array(points_in_poly)
+
+
+def _normalize_satellite(satellite):
+    """Normalize a GOES satellite identifier to its integer number.
+
+    Accepts an int (e.g. ``16``) or a string in any of the common forms
+    (``'16'``, ``'g16'``, ``'glm-16'``, ``'goes-16'``, case-insensitive) and
+    returns the integer 16/17/18/19. Raises ``ValueError`` otherwise.
+    """
+    if isinstance(satellite, (int, np.integer)):
+        num = int(satellite)
+    elif isinstance(satellite, str):
+        s = satellite.lower().strip()
+        # strip the common textual prefixes, longest first so 'g' does not
+        # swallow the leading letter of 'glm'/'goes'
+        for prefix in ('glm-', 'glm', 'goes-', 'goes', 'g'):
+            if s.startswith(prefix):
+                s = s[len(prefix):]
+                break
+        try:
+            num = int(s)
+        except ValueError:
+            raise ValueError('unknown satellite "' + str(satellite) + '". Valid '
+                             'satellites are: ' + str(GOES_SATELLITES))
+    else:
+        raise ValueError('satellite must be an int or string, got ' + str(type(satellite)))
+
+    if num not in GOES_SATELLITES:
+        raise ValueError('unknown satellite "' + str(satellite) + '". Valid '
+                         'satellites are: ' + str(GOES_SATELLITES))
+    return num
+
+
+def get_obs_intervals(satellite):
+    """Get the operational intervals and FOV orientations of a GOES satellite's GLM.
+
+    Reads the packaged ``data/glm##_obs.csv`` file that records when the given
+    satellite was active and, for GOES-17, which yaw-flip orientation it was in.
+
+    Parameters
+    ----------
+    satellite: int or str
+        A GOES satellite identifier accepted by `_normalize_satellite`
+        (e.g. ``16``, ``'g16'``, ``'glm-16'``, ``'goes-16'``).
+
+    Returns
+    -------
+    `~pandas.DataFrame`
+        A frame with at least the columns ``boundary``, ``start`` and ``end``.
+        ``start``/``end`` are ISO-format date strings (``end`` may be empty,
+        meaning "still active"); ``boundary`` is a name understood by
+        `get_boundary`.
+    """
+    num = _normalize_satellite(satellite)
+    path = ROOT_PATH + '/data/glm' + str(num) + '_obs.csv'
+    # the files carry a leading '#' comment line (hence header=1) and are
+    # whitespace-aligned for readability: skipinitialspace handles the spaces
+    # after each comma, and the strip below removes any trailing spaces so the
+    # date strings parse cleanly (e.g. "2023-01-03   " -> "2023-01-03")
+    df = pd.read_csv(path, header=1, skipinitialspace=True)
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].str.strip()
+    return df
+
+
+def _to_utc(time):
+    """Coerce a time (ISO string, datetime, or pandas/numpy datetime) to UTC-aware."""
+    if isinstance(time, str):
+        dt = datetime.fromisoformat(time)
+    elif isinstance(time, datetime):
+        dt = time
+    else:
+        # pandas Timestamp, numpy datetime64, etc.
+        dt = pd.Timestamp(time).to_pydatetime()
+    # if the timezone is not given, assume UTC (as elsewhere in the package)
+    if dt.tzinfo is None:
+        dt = utc.localize(dt)
+    return dt
+
+
+def _parse_window(value):
+    """Parse a start/end cell from an obs csv into a UTC-aware datetime or None."""
+    if value is None or (isinstance(value, float) and pd.isna(value)) or pd.isna(value):
+        return None
+    return _to_utc(str(value).strip())
+
+
+def _boundary_position(boundary):
+    """Return (position, inverted) describing a GLM FOV boundary name."""
+    position = 'east' if boundary == 'goes-e' else 'west'
+    inverted = boundary == 'goes-w-i'
+    return position, inverted
+
+
+def get_satellites(lat, lon, time, numbers_only=False):
+    """Determine which GOES satellites' GLM could observe a spatiotemporal point.
+
+    Given a point (or several points) in space and time, returns the GOES
+    satellites (16, 17, 18, 19) whose Geostationary Lightning Mapper was both
+    operational and had the point within its field of view at that time. This is
+    the per-point inverse of `~bolides.BolideDataFrame.filter_observation`, and
+    does not require a `~bolides.BolideDataFrame`.
+
+    The operational windows and FOV orientations come from the packaged
+    ``data/glm##_obs.csv`` files (see `get_obs_intervals`); the FOV polygons come
+    from `get_boundary`. GOES-18 reuses the GOES-West FOV and GOES-19 the
+    GOES-East FOV.
+
+    Parameters
+    ----------
+    lat, lon: float or array-like of float
+        Latitude and longitude of the point(s), in degrees (EPSG:4326).
+    time: str, `~datetime.datetime`, or array-like
+        The time(s) of the point(s). Strings are parsed with
+        `~datetime.datetime.fromisoformat`; naive times are assumed to be UTC.
+        Must be the same length as ``lat`` and ``lon`` (a single point may use
+        scalars for all three).
+    numbers_only: bool
+        If ``False`` (default), return structured per-satellite information. If
+        ``True``, return only the satellite numbers.
+
+    Returns
+    -------
+    `~pandas.DataFrame` or list
+        - If ``numbers_only`` is ``False`` (default): a `~pandas.DataFrame` with
+          one row per observing (point, satellite), with columns ``satellite``,
+          ``position`` (``'east'``/``'west'``), ``boundary``, ``inverted``,
+          ``start`` and ``end``. For array input a leading ``point`` column gives
+          the 0-based index into the inputs.
+        - If ``numbers_only`` is ``True``: for a single point, a sorted list of
+          observing satellite integers; for array input, a list of such lists,
+          one per point.
+    """
+    # determine whether the caller passed a single point (scalars) or arrays,
+    # to decide the shape of the return value
+    scalar = np.ndim(lat) == 0
+    lats = np.atleast_1d(np.asarray(lat, dtype=float))
+    lons = np.atleast_1d(np.asarray(lon, dtype=float))
+
+    # normalize time into a list, then to UTC-aware datetimes
+    if isinstance(time, (list, tuple, np.ndarray, pd.Series, pd.Index)):
+        times = [_to_utc(t) for t in time]
+    else:
+        times = [_to_utc(time)]
+
+    if not (len(lats) == len(lons) == len(times)):
+        raise ValueError('lat, lon and time must have the same length (got '
+                         + str(len(lats)) + ', ' + str(len(lons)) + ', '
+                         + str(len(times)) + ')')
+
+    # project the points to the Azimuthal Equidistant CRS the FOV polygons use
+    aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=90, lon_0=0).srs
+    gdf = GeoDataFrame(geometry=[Point(lo, la) for lo, la in zip(lons, lats)], crs='epsg:4326')
+    points = list(gdf.to_crs(aeqd).geometry)
+
+    # preload each satellite's observation windows and the FOV polygons, so each
+    # csv is read and each boundary projected only once
+    obs = {}
+    poly_cache = {}
+    for num in GOES_SATELLITES:
+        df = get_obs_intervals(num)
+        rows = []
+        for _, row in df.iterrows():
+            boundary = row['boundary']
+            rows.append((boundary, _parse_window(row['start']), _parse_window(row['end'])))
+            if boundary not in poly_cache:
+                poly_cache[boundary] = get_boundary(boundary)
+        obs[num] = rows
+
+    # for each point, find every satellite that was operational and viewing it
+    records = []
+    per_point_nums = []
+    for i, (point, t) in enumerate(zip(points, times)):
+        nums_here = []
+        for num in GOES_SATELLITES:
+            for boundary, start, end in obs[num]:
+                in_time = (start is None or t >= start) and (end is None or t <= end)
+                if in_time and point.within(poly_cache[boundary]):
+                    nums_here.append(num)
+                    position, inverted = _boundary_position(boundary)
+                    records.append({'point': i, 'satellite': num, 'position': position,
+                                    'boundary': boundary, 'inverted': inverted,
+                                    'start': start, 'end': end})
+                    # the satellite observes this point; its windows are disjoint
+                    # so there is no need to check the rest of them
+                    break
+        per_point_nums.append(sorted(nums_here))
+
+    if numbers_only:
+        return per_point_nums[0] if scalar else per_point_nums
+
+    columns = ['point', 'satellite', 'position', 'boundary', 'inverted', 'start', 'end']
+    result = pd.DataFrame(records, columns=columns)
+    # for a single point the 'point' index column is just noise
+    if scalar:
+        result = result.drop(columns=['point'])
+    return result

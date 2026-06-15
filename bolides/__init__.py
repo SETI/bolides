@@ -12,5 +12,6 @@ from .bdf import BolideDataFrame
 from .sdf import ShowerDataFrame
 from .utils import youtube_photometry
 from .constants import GOES_W_LON, GOES_E_LON, GLM_STEREO_MIDPOINT, FY4A_LON
+from .fov_utils import get_satellites
 
-__all__ = ["BolideDataFrame"]
+__all__ = ["BolideDataFrame", "get_satellites"]

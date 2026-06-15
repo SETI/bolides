@@ -1,0 +1,4 @@
+# This file determines when GOES-19 was active
+boundary,start,end
+goes-e,2025-04-07,
+

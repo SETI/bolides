@@ -1,6 +1,5 @@
-notebooks/*
-*.csv
-*.ipynb
+# generated webapp data dumps (not source)
+webapp/*.csv
 */_spacekit.js
 _spacekit.js
 sprites

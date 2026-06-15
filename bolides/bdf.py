@@ -442,7 +442,10 @@ class BolideDataFrame(GeoDataFrame):
             - ``'GLM-16'``: The Geostationary Lightning Mapper aboard GOES-16.
             - ``'GLM-17'``: The Geostationary Lightning Mapper aboard GOES-17.
               Note that the biannual yaw flips of GOES-17 are taken into account.
-              The shorthand ``'G16'`` and ``'G17'`` can also be used.
+            - ``'GLM-18'``: The Geostationary Lightning Mapper aboard GOES-18.
+            - ``'GLM-19'``: The Geostationary Lightning Mapper aboard GOES-19.
+
+            The shorthand ``'G16'`` … ``'G19'`` can also be used.
 
         intersection: bool
             If True, filter for bolides observable by all sensors given.
@@ -461,25 +464,21 @@ class BolideDataFrame(GeoDataFrame):
             raise ValueError("Sensors must be a string or list of strings")
         sensors = [sensor.lower() for sensor in sensors]
 
-        valid_sensors = ['g16', 'g17', 'glm-16', 'glm-17']
-        
+        valid_sensors = ['g16', 'g17', 'g18', 'g19', 'glm-16', 'glm-17', 'glm-18', 'glm-19']
+
         indices = []
         for num, sensor in enumerate(sensors):
-            filename = sensor
-            if sensor in ['g16', 'glm-16']:
-                filename = ROOT_PATH + '/data/glm16_obs.csv'
-            elif sensor in ['g17', 'glm-17']:
-                filename = ROOT_PATH + '/data/glm17_obs.csv'
-            # TODO: update for g18 and g19
-            elif sensor in ['g18', 'glm-18', 'g19', 'glm-19']:
-                warnings.warn('Working with GOES-18 and GOES-19 data. Problems might arise from not using GOES-16 or GOES-17.')
-            else:
+            # resolve the sensor to a GOES satellite and load its observation
+            # windows + FOVs (shared with fov_utils.get_satellites)
+            try:
+                satellite = fu._normalize_satellite(sensor)
+            except ValueError:
                 raise ValueError("Invalid sensor \""+sensor+"\". sensors must be in "+str(valid_sensors))
 
             bdfs = []
 
             # read csv defining the observation times and FOV
-            fov_df = pd.read_csv(filename)
+            fov_df = fu.get_obs_intervals(satellite)
 
             # for each observation time + FOV, filter_date by the observation
             # times, filter_boundary by the FOV, and append result to the list
