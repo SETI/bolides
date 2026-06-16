@@ -41,6 +41,11 @@ extensions = ['sphinx.ext.autodoc',
 autosummary_generate = True
 numpydoc_show_class_members = False
 
+# cartopy is not installed in the RTD build environment (it requires GEOS/PROJ
+# system libs and its PyPI wheel historically had setuptools compatibility issues).
+# Mock it so Sphinx can import bolides/fov_utils without cartopy being present.
+autodoc_mock_imports = ['cartopy']
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
