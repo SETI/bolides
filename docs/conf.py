@@ -24,7 +24,7 @@ copyright = ''
 author = 'Anthony Ozerov, Jeffrey Smith and the NASA ATAP team'
 
 # The full version, including alpha/beta/rc tags
-release = '0.6.0'
+release = '0.6.1'
 
 
 # -- General configuration ---------------------------------------------------
@@ -62,7 +62,7 @@ html_theme = 'pydata_sphinx_theme'
 html_context = {"default_mode": "light"}
 html_theme_options = {
     "external_links": [{'url': 'https://bolides.seti.org', 'name': '🌠 webapp'}],
-    "github_url": "https://github.com/jcsmithhere/bolides",
+    "github_url": "https://github.com/SETI/bolides",
     "navbar_end": ["navbar-icon-links"],
     "footer_items": ["footer"]
 }
