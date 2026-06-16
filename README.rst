@@ -13,7 +13,7 @@ bolides
                 :target: https://pypi.org/project/bolides/
                 :alt: PyPI link
 .. |binder-badge| image:: https://mybinder.org/badge_logo.svg
-                :target: https://mybinder.org/v2/gh/SETI/bolides/master?labpath=notebooks%2Ftutorial.ipynb
+                :target: https://mybinder.org/v2/gh/SETI/bolides/master?labpath=notebooks%2Ftutorial_BolideDataFrame.ipynb
                 :alt: Binder link
 
 .. image:: https://raw.githubusercontent.com/SETI/bolides/master/docs/preview.gif
@@ -77,7 +77,7 @@ Once this package is on the Python Package Index, you can install via pip using 
 Tutorial
 ========
 
-For a usage tutorial, go `here <https://bolides.readthedocs.io/en/latest/tutorials>`_. An interactive version is hosted on `binder <https://mybinder.org/v2/gh/SETI/bolides/master?labpath=notebooks%2Ftutorial.ipynb>`_.
+For usage tutorials, go `here <https://bolides.readthedocs.io/en/latest/tutorials>`_. Interactive versions are hosted on binder: `BolideDataFrame <https://mybinder.org/v2/gh/SETI/bolides/master?labpath=notebooks%2Ftutorial_BolideDataFrame.ipynb>`_ and `Field-of-View tools <https://mybinder.org/v2/gh/SETI/bolides/master?labpath=notebooks%2Ftutorial_FOV_tools.ipynb>`_.
 
 .. start-after-here
 

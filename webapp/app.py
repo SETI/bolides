@@ -334,7 +334,7 @@ can be read by `bolides` or any spreadsheet software.
 
         # it contains checkboxes to plot fields of view
         html.Div(children=['Field-of-view options:  ',
-            dcc.Checklist(['goes', 'goes-e', 'goes-w', 'goes-w-ni', 'goes-w-i',
+            dcc.Checklist(['goes', 'goes-e', 'goes-w', 'goes-w-normal', 'goes-w-inverted',
                            'fy4a', 'fy4a-n', 'fy4a-s', 'gmn-25km', 'gmn-70km', 'gmn-100km'],
                           [], inline=True, id='boundary-checklist',
                           style={'display': 'inline-block'})]),

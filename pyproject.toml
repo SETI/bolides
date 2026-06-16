@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bolides"
-version = "0.6.0"
+version = "0.6.1"
 authors = [
   { name="Anthony Ozerov", email="ozerov@berkeley.edu" },
   { name="Jeffrey Smith", email="jsmith@seti.org" },

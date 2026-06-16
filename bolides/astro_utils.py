@@ -1,5 +1,6 @@
 from math import degrees, pi, floor, radians, sin
 from datetime import datetime
+from pytz import timezone
 from subprocess import Popen, PIPE
 import numpy as np
 import ephem
@@ -114,8 +115,10 @@ def sol_lon_to_datetime(lon, year):
     dt = t.datetime
 
     # make the UTC datetime timezone-aware
-    utc = timezone('UTC')
-    dt = utc.localize(dt)
+    # if the timezone is not given, assume UTC (as elsewhere in the package)
+    if dt.tzinfo is None:
+        utc = timezone('UTC')
+        dt = utc.localize(dt)
 
     return dt
 

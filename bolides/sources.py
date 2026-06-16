@@ -19,7 +19,17 @@ def glm_website():
 
     # create DataFrame using JSON data
     df = pd.DataFrame(json['data'])
-    df["datetime"] = pd.to_datetime(df["datetime"])
+    # The neo-bolide API now serializes 'datetime' as a Unix epoch-millisecond
+    # integer; it used to be an ISO-8601 string. Handle both: a bare integer fed
+    # to pd.to_datetime is read as nanoseconds (giving 1970 dates), so epoch-ms
+    # input must be parsed with unit='ms'. Either way localize to UTC so the
+    # datetime column is timezone-aware UTC like every other source (times are
+    # UTC throughout the package, and naive/aware mixing breaks date comparisons
+    # in e.g. filter_date).
+    if pd.api.types.is_numeric_dtype(df["datetime"]):
+        df["datetime"] = pd.to_datetime(df["datetime"], unit='ms', utc=True)
+    else:
+        df["datetime"] = pd.to_datetime(df["datetime"], utc=True)
     
     # add bolide brightness data
     peak_energy_cat_g16 = []

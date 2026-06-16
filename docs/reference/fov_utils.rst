@@ -9,3 +9,5 @@ Boundary API
    :toctree: api/
 
    get_boundary
+   get_satellites
+   get_obs_intervals
