@@ -497,7 +497,7 @@ def plot_interactive(df, mode='earth', projection="eckert4",
                 lons, lats = p.exterior.coords.xy
                 lons = np.array(lons)
                 lats = np.array(lats)
-                if boundary[num] in ['goes', 'goes-w', 'goes-w-i', 'goes-w-ni']:
+                if boundary[num] in ['goes', 'goes-w', 'goes-w-inverted', 'goes-w-normal']:
                     lons = lons - (lons > 50) * 360
                 fig.add_trace(go.Scattergeo(mode="lines", lon=lons, lat=lats,
                                             name=boundary[num], opacity=0.7,

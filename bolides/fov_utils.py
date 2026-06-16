@@ -72,9 +72,9 @@ def get_boundary(boundary, collection=True, intersection=False, crs=None):
     - ``'goes-w'``: GOES-West position GLM FOV, currently corresponding to GOES-17.
       Note that this combines the inverted and non-inverted FOVs.
     - ``'goes-e'``: GOES-East position GLM FOV, currently corresopnding to GOES-16.
-    - ``'goes-w-ni'``: GOES-West position GLM FOV, when GOES-17 is not inverted (summer).
-    - ``'goes-w-i'``: GOES-West position GLM FOV, when GOES-17 is inverted (winter).
-    - ``'goes-17-89.5'``: GOES-17 GLM FOV when it was in its checkout orbit.
+    - ``'goes-w-normal'``: GOES-West position GLM FOV, when GOES-17 is not inverted (summer).
+    - ``'goes-w-inverted'``: GOES-West position GLM FOV, when GOES-17 is inverted (winter).
+    - ``'goes-17-checkout-orbit'``: GOES-17 GLM FOV when it was in its checkout orbit.
     - ``'fy4a'``: Combined FOV of the Fengyun-4A LMI, in both North and South configurations.
     - ``'fy4a-n'``: Fengyun-4A LMI FOV when in the North configuration (summer).
     - ``'fy4a-s'``: Fengyun-4A LMI FOV when in the South configuration (winter).
@@ -105,8 +105,8 @@ def get_boundary(boundary, collection=True, intersection=False, crs=None):
     if type(boundary) is str:
         boundary = boundary.lower()
 
-    valid_boundaries = ['goes-w-ni', 'goes-w-i', 'goes-w', 'goes-e', 'goes',
-                        'fy4a-s', 'fy4a-n', 'fy4a', 'goes-17-89.5',
+    valid_boundaries = ['goes-w-normal', 'goes-w-inverted', 'goes-w', 'goes-e', 'goes',
+                        'fy4a-s', 'fy4a-n', 'fy4a', 'goes-17-checkout-orbit',
                         'gmn-100km', 'gmn-70km', 'gmn-25km']
 
     if type(boundary) is str and boundary not in valid_boundaries:
@@ -120,21 +120,21 @@ def get_boundary(boundary, collection=True, intersection=False, crs=None):
         aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=90, lon_0=0).srs
         return change_crs(polygons, aeqd, crs)
 
-    if boundary == 'goes-w-ni':
+    if boundary == 'goes-w-normal':
         fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
         lats = fov.variables['G17_fov_lat'][0]
         lons = fov.variables['G17_fov_lon'][0]
         polygon = Polygon(zip(lons, lats))
         return aeqd_from_lonlat(polygon)
 
-    elif boundary == 'goes-w-i':
+    elif boundary == 'goes-w-inverted':
         fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
         lats = fov.variables['G17_fov_lat_inverted'][0]
         lons = fov.variables['G17_fov_lon_inverted'][0]
         polygon = Polygon(zip(lons, lats))
         return aeqd_from_lonlat(polygon)
 
-    elif boundary == 'goes-17-89.5':
+    elif boundary == 'goes-17-checkout-orbit':
         fov = Dataset(GLM_FOV_PATH, "r", format="NETCDF4")
         lats = fov.variables['G17_fov_lat'][0]
         lons = np.array(fov.variables['G17_fov_lon'][0]) + (-89.5-(-137.2))
@@ -142,7 +142,7 @@ def get_boundary(boundary, collection=True, intersection=False, crs=None):
         return aeqd_from_lonlat(polygon)
 
     elif boundary == 'goes-w':
-        return get_boundary(['goes-w-ni', 'goes-w-i'], collection=False)
+        return get_boundary(['goes-w-normal', 'goes-w-inverted'], collection=False)
 
     elif boundary == 'goes':
         return get_boundary(['goes-w', 'goes-e'], collection=False)
@@ -344,7 +344,7 @@ def _parse_window(value):
 def _boundary_position(boundary):
     """Return (position, inverted) describing a GLM FOV boundary name."""
     position = 'east' if boundary == 'goes-e' else 'west'
-    inverted = boundary == 'goes-w-i'
+    inverted = boundary == 'goes-w-inverted'
     return position, inverted
 
 
@@ -379,10 +379,13 @@ def get_satellites(lat, lon, time, numbers_only=False):
     -------
     `~pandas.DataFrame` or list
         - If ``numbers_only`` is ``False`` (default): a `~pandas.DataFrame` with
-          one row per observing (point, satellite), with columns ``satellite``,
-          ``position`` (``'east'``/``'west'``), ``boundary``, ``inverted``,
-          ``start`` and ``end``. For array input a leading ``point`` column gives
-          the 0-based index into the inputs.
+          one row per observing (point, satellite), with columns ``latitude``,
+          ``longitude``, ``time``, ``satellite``, ``position``
+          (``'east'``/``'west'``), ``boundary``, ``inverted``,
+          ``'Instrument Operational'`` and ``'Instrument Disabled'`` (the latter
+          is ``'Still In Operation'`` for satellites that have not been retired).
+          For array input a leading ``point`` column gives the 0-based index into
+          the inputs.
         - If ``numbers_only`` is ``True``: for a single point, a sorted list of
           observing satellite integers; for array input, a list of such lists,
           one per point.
@@ -434,9 +437,15 @@ def get_satellites(lat, lon, time, numbers_only=False):
                 if in_time and point.within(poly_cache[boundary]):
                     nums_here.append(num)
                     position, inverted = _boundary_position(boundary)
-                    records.append({'point': i, 'satellite': num, 'position': position,
+                    # show a human-readable label rather than NaT when the
+                    # satellite has no retirement date (still operating)
+                    disabled = 'Still In Operation' if end is None else end
+                    records.append({'point': i,
+                                    'latitude': lats[i], 'longitude': lons[i], 'time': t,
+                                    'satellite': num, 'position': position,
                                     'boundary': boundary, 'inverted': inverted,
-                                    'start': start, 'end': end})
+                                    'Instrument Operational': start,
+                                    'Instrument Disabled': disabled})
                     # the satellite observes this point; its windows are disjoint
                     # so there is no need to check the rest of them
                     break
@@ -445,7 +454,8 @@ def get_satellites(lat, lon, time, numbers_only=False):
     if numbers_only:
         return per_point_nums[0] if scalar else per_point_nums
 
-    columns = ['point', 'satellite', 'position', 'boundary', 'inverted', 'start', 'end']
+    columns = ['point', 'latitude', 'longitude', 'time', 'satellite', 'position',
+               'boundary', 'inverted', 'Instrument Operational', 'Instrument Disabled']
     result = pd.DataFrame(records, columns=columns)
     # for a single point the 'point' index column is just noise
     if scalar:

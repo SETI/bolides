@@ -236,7 +236,7 @@ class BolideDataFrame(GeoDataFrame):
 
             # if timezone not given, make the datetime timezone-aware
             # with UTC assumed as the timezone
-            if dt.tzname() == None:
+            if dt.tzname() is None:
                 dt = utc.localize(dt)
 
             to_drop = self.datetime < dt
@@ -249,7 +249,7 @@ class BolideDataFrame(GeoDataFrame):
 
             # if timezone not given, make the datetime timezone-aware
             # with UTC assumed as the timezone
-            if dt.tzname() == None:
+            if dt.tzname() is None:
                 dt = utc.localize(dt)
 
             to_drop = new_bdf.datetime > dt
@@ -285,7 +285,7 @@ class BolideDataFrame(GeoDataFrame):
 
         # if timezone not given, make the datetime timezone-aware
         # with UTC assumed as the timezone
-        if dt.tzname() == None:
+        if dt.tzname() is None:
             dt = utc.localize(dt)
 
         return self.iloc[(self['datetime'] - dt).abs().argsort()].head(n)
